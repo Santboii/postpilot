@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Post, PostStatus, PlatformId, PLATFORMS } from '@/types';
@@ -9,7 +9,7 @@ import styles from './page.module.css';
 
 type FilterStatus = 'all' | PostStatus;
 
-export default function PostsPage() {
+function PostsPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [posts, setPosts] = useState<Post[]>([]);
@@ -251,5 +251,13 @@ export default function PostsPage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function PostsPage() {
+    return (
+        <Suspense fallback={<div className={styles.container}>Loading...</div>}>
+            <PostsPageContent />
+        </Suspense>
     );
 }
