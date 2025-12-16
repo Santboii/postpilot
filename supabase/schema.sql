@@ -37,10 +37,12 @@ create table if not exists connected_accounts (
   platform text not null,
   access_token text,
   refresh_token text,
-  expires_at timestamptz,
+  token_expires_at timestamptz,
   platform_user_id text,
   platform_username text,
-  created_at timestamptz default now()
+  connected_at timestamptz default now(),
+  metadata jsonb,
+  unique(user_id, platform)
 );
 
 -- Activity feed
