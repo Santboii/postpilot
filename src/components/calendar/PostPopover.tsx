@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Post, PLATFORMS, PlatformId } from '@/types';
-import { deletePost, publishPost } from '@/lib/storage';
+import { deletePost, publishPost } from '@/lib/db';
 import styles from './PostPopover.module.css';
 
 interface PopoverPosition {
@@ -68,19 +68,27 @@ export default function PostPopover({ post, position, onClose, onEdit, onPostUpd
         });
     };
 
-    const handlePublishNow = () => {
+    const handlePublishNow = async () => {
         if (confirm('Publish this post now?')) {
-            publishPost(post.id);
-            onPostUpdated();
-            onClose();
+            try {
+                await publishPost(post.id);
+                onPostUpdated();
+                onClose();
+            } catch (err) {
+                console.error('Failed to publish:', err);
+            }
         }
     };
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (confirm('Delete this post?')) {
-            deletePost(post.id);
-            onPostUpdated();
-            onClose();
+            try {
+                await deletePost(post.id);
+                onPostUpdated();
+                onClose();
+            } catch (err) {
+                console.error('Failed to delete:', err);
+            }
         }
     };
 

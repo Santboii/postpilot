@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Post, PLATFORMS, PlatformId, getCharacterLimit } from '@/types';
-import { updatePost } from '@/lib/storage';
+import { updatePost } from '@/lib/db';
 import styles from './EditPostModal.module.css';
 
 interface EditPostModalProps {
@@ -17,6 +17,7 @@ export default function EditPostModal({ post, onClose, onSaved }: EditPostModalP
     const [scheduledDate, setScheduledDate] = useState('');
     const [scheduledTime, setScheduledTime] = useState('');
     const [status, setStatus] = useState<'draft' | 'scheduled'>('draft');
+    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         if (post) {
@@ -59,23 +60,30 @@ export default function EditPostModal({ post, onClose, onSaved }: EditPostModalP
             content.trim().length === 0;
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (hasErrors()) return;
+        setSaving(true);
 
-        let scheduledAt: string | undefined;
-        if (status === 'scheduled' && scheduledDate && scheduledTime) {
-            scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
+        try {
+            let scheduledAt: string | undefined;
+            if (status === 'scheduled' && scheduledDate && scheduledTime) {
+                scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
+            }
+
+            await updatePost(post.id, {
+                content,
+                platforms: selectedPlatforms,
+                status,
+                scheduledAt,
+            });
+
+            onSaved();
+            onClose();
+        } catch (err) {
+            console.error('Failed to save:', err);
+        } finally {
+            setSaving(false);
         }
-
-        updatePost(post.id, {
-            content,
-            platforms: selectedPlatforms,
-            status,
-            scheduledAt,
-        });
-
-        onSaved();
-        onClose();
     };
 
     return (

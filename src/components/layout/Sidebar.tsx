@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { getPendingSuggestionsCount } from '@/lib/storage';
+import { useAuth } from '@/contexts/AuthContext';
 import styles from './Sidebar.module.css';
 
 interface NavItem {
@@ -23,16 +23,19 @@ const staticNavItems: NavItem[] = [
 
 export default function Sidebar() {
     const pathname = usePathname();
-    const [pendingCount, setPendingCount] = useState(0);
-
-    useEffect(() => {
-        setPendingCount(getPendingSuggestionsCount());
-    }, [pathname]);
+    const { user, signOut } = useAuth();
 
     const navItems: NavItem[] = [
         ...staticNavItems,
         { label: 'Settings', href: '/settings', icon: '⚙️' },
     ];
+
+    const handleLogout = async () => {
+        await signOut();
+    };
+
+    const userInitial = user?.email?.charAt(0).toUpperCase() || 'U';
+    const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'User';
 
     return (
         <aside className={styles.sidebar}>
@@ -69,10 +72,12 @@ export default function Sidebar() {
                 </Link>
 
                 <div className={styles.userSection}>
-                    <div className={styles.avatar}>D</div>
+                    <div className={styles.avatar}>{userInitial}</div>
                     <div className={styles.userInfo}>
-                        <span className={styles.userName}>Demo User</span>
-                        <span className={styles.userPlan}>Pro Plan</span>
+                        <span className={styles.userName}>{displayName}</span>
+                        <button className={styles.logoutBtn} onClick={handleLogout}>
+                            Sign Out
+                        </button>
                     </div>
                 </div>
             </div>

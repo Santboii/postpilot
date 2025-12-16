@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PlatformId, ToneType, PLATFORMS, getPlatform } from '@/types';
 import { generatePosts, fetchUrlContent } from '@/lib/ai';
-import { createPost, getPosts } from '@/lib/storage';
+import { createPost } from '@/lib/db';
 import styles from './page.module.css';
 
 type ScheduleMode = 'now' | 'scheduled' | 'batch';
@@ -71,9 +71,6 @@ export default function AIComposePage() {
         setGeneratedContent([]);
 
         try {
-            // Get past posts for style matching
-            const pastPosts = getPosts().slice(0, 5).map(p => p.content);
-
             // Fetch URL content if provided
             let urlContent: string | undefined;
             if (sourceUrl.trim()) {
@@ -90,7 +87,7 @@ export default function AIComposePage() {
                 platforms: selectedPlatforms,
                 sourceUrl: sourceUrl || undefined,
                 urlContent,
-                pastPosts,
+                pastPosts: [], // AI doesn't need past posts for now
             });
 
             // Convert suggestion variants to editable content
@@ -130,30 +127,44 @@ export default function AIComposePage() {
         return new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
     };
 
-    const handleSchedule = () => {
+    const handleSchedule = async () => {
         if (generatedContent.length === 0) return;
 
         const scheduledAt = getScheduledAt();
         const status = scheduleMode === 'now' ? 'draft' : 'scheduled';
 
-        if (scheduleMode === 'batch') {
-            // Create separate posts for each batch slot
-            batchSlots.forEach((slot, index) => {
-                if (slot.date && slot.time) {
-                    const slotScheduledAt = new Date(`${slot.date}T${slot.time}`).toISOString();
-                    generatedContent.forEach(gc => {
-                        createPost(gc.content, [gc.platformId], 'scheduled', slotScheduledAt);
+        try {
+            if (scheduleMode === 'batch') {
+                // Create separate posts for each batch slot
+                for (const slot of batchSlots) {
+                    if (slot.date && slot.time) {
+                        const slotScheduledAt = new Date(`${slot.date}T${slot.time}`).toISOString();
+                        for (const gc of generatedContent) {
+                            await createPost({
+                                content: gc.content,
+                                platforms: [gc.platformId],
+                                status: 'scheduled',
+                                scheduledAt: slotScheduledAt,
+                            });
+                        }
+                    }
+                }
+            } else {
+                // Create single post for each platform
+                for (const gc of generatedContent) {
+                    await createPost({
+                        content: gc.content,
+                        platforms: [gc.platformId],
+                        status,
+                        scheduledAt,
                     });
                 }
-            });
-        } else {
-            // Create single post for each platform
-            generatedContent.forEach(gc => {
-                createPost(gc.content, [gc.platformId], status, scheduledAt);
-            });
-        }
+            }
 
-        router.push('/calendar');
+            router.push('/calendar');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to schedule posts');
+        }
     };
 
     const formatSchedulePreview = (): string => {

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PlatformId, PLATFORMS, getCharacterLimit } from '@/types';
-import { createPost } from '@/lib/storage';
+import { createPost } from '@/lib/db';
 import styles from './Composer.module.css';
 
 type ContentMode = 'shared' | PlatformId;
@@ -12,6 +12,7 @@ export default function PostComposer() {
     const router = useRouter();
     const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformId[]>(['twitter']);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Shared content (used when not customizing per-platform)
     const [sharedContent, setSharedContent] = useState('');
@@ -141,13 +142,23 @@ export default function PostComposer() {
         if (!sharedContent.trim() || selectedPlatforms.length === 0) return;
 
         setIsSubmitting(true);
-        await new Promise(resolve => setTimeout(resolve, 800));
+        setError(null);
 
-        const scheduledAt = status === 'scheduled' ? getScheduledDateTime() : undefined;
-        createPost(sharedContent, selectedPlatforms, status, scheduledAt);
-
-        setIsSubmitting(false);
-        router.push('/');
+        try {
+            const scheduledAt = status === 'scheduled' ? getScheduledDateTime() : undefined;
+            await createPost({
+                content: sharedContent,
+                platforms: selectedPlatforms,
+                status,
+                scheduledAt,
+            });
+            router.push('/');
+        } catch (err) {
+            console.error('Failed to create post:', err);
+            setError(err instanceof Error ? err.message : 'Failed to create post');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const canSchedule = scheduleEnabled && scheduleDate && scheduleTime;

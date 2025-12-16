@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Sidebar from "@/components/layout/Sidebar";
-import styles from "./layout.module.css";
+import { AppWrapper } from "@/components/layout/AppWrapper";
 
 export const metadata: Metadata = {
   title: "PostPilot - AI-Powered Social Media",
@@ -26,12 +25,7 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" />
       </head>
       <body>
-        <div className={styles.appContainer}>
-          <Sidebar />
-          <main className={styles.mainContent}>
-            {children}
-          </main>
-        </div>
+        <AppWrapper>{children}</AppWrapper>
       </body>
     </html>
   );

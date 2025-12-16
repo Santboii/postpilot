@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getDashboardStats, getActivities, initDemoData, DashboardStats, Activity } from '@/lib/storage';
+import { getDashboardStats, getActivities, type DashboardStats } from '@/lib/db';
+import type { Activity } from '@/types';
 import styles from './page.module.css';
 
 export default function Dashboard() {
@@ -11,13 +12,16 @@ export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Initialize demo data for first time users
-    initDemoData();
-
-    // Load data
-    setStats(getDashboardStats());
-    setActivities(getActivities());
-    setMounted(true);
+    async function loadData() {
+      const [statsData, activitiesData] = await Promise.all([
+        getDashboardStats(),
+        getActivities(),
+      ]);
+      setStats(statsData);
+      setActivities(activitiesData);
+      setMounted(true);
+    }
+    loadData();
   }, []);
 
   if (!mounted) {

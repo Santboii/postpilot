@@ -1,7 +1,7 @@
 'use client';
 
 import { Post, PLATFORMS, PlatformId } from '@/types';
-import { updatePost, deletePost, publishPost } from '@/lib/storage';
+import { updatePost, deletePost, publishPost } from '@/lib/db';
 import styles from './PostDetailPanel.module.css';
 
 interface PostDetailPanelProps {
@@ -47,22 +47,30 @@ export default function PostDetailPanel({ post, onClose, onEdit, onPostUpdated }
         }
     };
 
-    const handlePublishNow = () => {
+    const handlePublishNow = async () => {
         if (confirm('Publish this post now?')) {
-            publishPost(post.id);
-            onPostUpdated();
+            try {
+                await publishPost(post.id);
+                onPostUpdated();
+            } catch (err) {
+                console.error('Failed to publish:', err);
+            }
         }
     };
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (confirm('Are you sure you want to delete this post?')) {
-            deletePost(post.id);
-            onPostUpdated();
-            onClose();
+            try {
+                await deletePost(post.id);
+                onPostUpdated();
+                onClose();
+            } catch (err) {
+                console.error('Failed to delete:', err);
+            }
         }
     };
 
-    const handleReschedule = () => {
+    const handleReschedule = async () => {
         const newDateTime = prompt(
             'Enter new date and time (YYYY-MM-DD HH:MM):',
             post.scheduledAt ? new Date(post.scheduledAt).toISOString().slice(0, 16).replace('T', ' ') : ''
@@ -71,11 +79,15 @@ export default function PostDetailPanel({ post, onClose, onEdit, onPostUpdated }
         if (newDateTime) {
             const dateObj = new Date(newDateTime.replace(' ', 'T'));
             if (!isNaN(dateObj.getTime())) {
-                updatePost(post.id, {
-                    scheduledAt: dateObj.toISOString(),
-                    status: 'scheduled'
-                });
-                onPostUpdated();
+                try {
+                    await updatePost(post.id, {
+                        scheduledAt: dateObj.toISOString(),
+                        status: 'scheduled'
+                    });
+                    onPostUpdated();
+                } catch (err) {
+                    console.error('Failed to reschedule:', err);
+                }
             } else {
                 alert('Invalid date format. Please use YYYY-MM-DD HH:MM');
             }

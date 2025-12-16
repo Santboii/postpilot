@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { getPosts, Post, PLATFORMS } from '@/lib/storage';
+import { Post, PLATFORMS } from '@/types';
+import { getPosts } from '@/lib/db';
 import PostPopover from '@/components/calendar/PostPopover';
 import styles from './page.module.css';
 
@@ -11,13 +12,17 @@ type ViewType = 'month' | 'week' | 'day';
 export default function CalendarPage() {
     const router = useRouter();
     const [posts, setPosts] = useState<Post[]>([]);
+    const [loading, setLoading] = useState(true);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [view, setView] = useState<ViewType>('month');
     const [selectedPost, setSelectedPost] = useState<Post | null>(null);
     const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
 
-    const loadPosts = useCallback(() => {
-        setPosts(getPosts());
+    const loadPosts = useCallback(async () => {
+        setLoading(true);
+        const data = await getPosts();
+        setPosts(data);
+        setLoading(false);
     }, []);
 
     useEffect(() => {

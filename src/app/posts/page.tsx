@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Post, PostStatus, PlatformId, PLATFORMS } from '@/types';
-import { getPosts, deletePost, publishPost } from '@/lib/storage';
+import { getPosts, deletePost, publishPost } from '@/lib/db';
 import styles from './page.module.css';
 
 type FilterStatus = 'all' | PostStatus;
@@ -13,9 +13,17 @@ function PostsPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [posts, setPosts] = useState<Post[]>([]);
+    const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
     const [filterPlatform, setFilterPlatform] = useState<PlatformId | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');
+
+    const loadPosts = useCallback(async () => {
+        setLoading(true);
+        const data = await getPosts();
+        setPosts(data);
+        setLoading(false);
+    }, []);
 
     useEffect(() => {
         // Read filter from URL params
@@ -24,11 +32,7 @@ function PostsPageContent() {
             setFilterStatus(statusParam as FilterStatus);
         }
         loadPosts();
-    }, [searchParams]);
-
-    const loadPosts = () => {
-        setPosts(getPosts());
-    };
+    }, [searchParams, loadPosts]);
 
     const filteredPosts = useMemo(() => {
         return posts.filter(post => {
@@ -62,17 +66,27 @@ function PostsPageContent() {
         router.push(`/posts/${postId}`);
     };
 
-    const handleDelete = (postId: string) => {
+    const handleDelete = async (postId: string) => {
         if (confirm('Delete this post?')) {
-            deletePost(postId);
-            loadPosts();
+            try {
+                await deletePost(postId);
+                await loadPosts();
+            } catch (error) {
+                console.error('Failed to delete post:', error);
+                alert('Failed to delete post');
+            }
         }
     };
 
-    const handlePublish = (postId: string) => {
+    const handlePublish = async (postId: string) => {
         if (confirm('Publish this post now?')) {
-            publishPost(postId);
-            loadPosts();
+            try {
+                await publishPost(postId);
+                await loadPosts();
+            } catch (error) {
+                console.error('Failed to publish post:', error);
+                alert('Failed to publish post');
+            }
         }
     };
 

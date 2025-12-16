@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { use } from 'react';
 import { PlatformId, PLATFORMS, getCharacterLimit, Post } from '@/types';
-import { getPost, updatePost, createPost, deletePost } from '@/lib/storage';
+import { getPost, updatePost, deletePost } from '@/lib/db';
 import styles from '@/components/composer/Composer.module.css';
 
 type ContentMode = 'shared' | PlatformId;
@@ -30,21 +30,19 @@ export default function EditPostPage({ params }: EditPostPageProps) {
         threads: '',
     });
     const [activeTab, setActiveTab] = useState<ContentMode>('shared');
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const existingPost = getPost(unwrappedParams.id);
-        if (existingPost) {
-            setPost(existingPost);
-            setSharedContent(existingPost.content);
-            setSelectedPlatforms(existingPost.platforms);
-            if (existingPost.platformContent) {
-                setPlatformContent(prev => ({
-                    ...prev,
-                    ...existingPost.platformContent,
-                }));
+        async function loadPost() {
+            const existingPost = await getPost(unwrappedParams.id);
+            if (existingPost) {
+                setPost(existingPost);
+                setSharedContent(existingPost.content);
+                setSelectedPlatforms(existingPost.platforms);
             }
+            setLoading(false);
         }
-        setLoading(false);
+        loadPost();
     }, [unwrappedParams.id]);
 
     const togglePlatform = (id: PlatformId) => {
@@ -102,26 +100,34 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     };
 
     const handleSave = async (status: 'draft' | 'scheduled' = 'draft') => {
-        if (!sharedContent.trim() || selectedPlatforms.length === 0) return;
+        if (!sharedContent.trim() || selectedPlatforms.length === 0 || !post) return;
         setIsSubmitting(true);
-        await new Promise(resolve => setTimeout(resolve, 600));
+        setError(null);
 
-        if (post) {
-            updatePost(post.id, {
+        try {
+            await updatePost(post.id, {
                 content: sharedContent,
                 platforms: selectedPlatforms,
                 status,
             });
+            router.push('/');
+        } catch (err) {
+            console.error('Failed to save post:', err);
+            setError(err instanceof Error ? err.message : 'Failed to save post');
+        } finally {
+            setIsSubmitting(false);
         }
-
-        setIsSubmitting(false);
-        router.push('/');
     };
 
     const handleDelete = async () => {
         if (!post || !confirm('Are you sure you want to delete this post?')) return;
-        deletePost(post.id);
-        router.push('/');
+        try {
+            await deletePost(post.id);
+            router.push('/');
+        } catch (err) {
+            console.error('Failed to delete post:', err);
+            setError(err instanceof Error ? err.message : 'Failed to delete post');
+        }
     };
 
     if (loading) {
