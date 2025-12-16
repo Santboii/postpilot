@@ -3,14 +3,15 @@ import "./globals.css";
 import { AppWrapper } from "@/components/layout/AppWrapper";
 
 export const metadata: Metadata = {
-  title: "PostPilot - AI-Powered Social Media",
+  title: "SocialsGenie - AI-Powered Social Media",
   description: "Create, schedule, and publish AI-generated content across all your social media platforms.",
   keywords: ["social media", "AI", "scheduler", "cross-posting", "content creation", "automation"],
-  authors: [{ name: "PostPilot" }],
+  authors: [{ name: "SocialsGenie" }],
   openGraph: {
-    title: "PostPilot - AI-Powered Social Media",
+    title: "SocialsGenie - AI-Powered Social Media",
     description: "Create, schedule, and publish AI-generated content across all your social media platforms.",
     type: "website",
+    url: "https://socialsgenie.com",
   },
 };
 

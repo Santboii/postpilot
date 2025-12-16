@@ -1,5 +1,5 @@
 /**
- * PostPilot Database Layer
+ * SocialsGenie Database Layer
  * 
  * This module provides type-safe access to the Supabase database.
  * All functions are async and handle errors gracefully.

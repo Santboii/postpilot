@@ -1,17 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { PlatformId, PLATFORMS, getCharacterLimit } from '@/types';
+import { PlatformId, PLATFORMS, getCharacterLimit, Platform } from '@/types';
 import { createPost } from '@/lib/db';
+import { getSupabase } from '@/lib/supabase';
 import styles from './Composer.module.css';
 
 type ContentMode = 'shared' | PlatformId;
 
 export default function PostComposer() {
     const router = useRouter();
-    const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformId[]>(['twitter']);
+    const [connectedPlatformIds, setConnectedPlatformIds] = useState<PlatformId[]>([]);
+    const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformId[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     // Shared content (used when not customizing per-platform)
@@ -34,15 +37,51 @@ export default function PostComposer() {
     const [scheduleDate, setScheduleDate] = useState('');
     const [scheduleTime, setScheduleTime] = useState('');
 
+    // Fetch connected platforms on mount
+    useEffect(() => {
+        async function loadConnectedPlatforms() {
+            const supabase = getSupabase();
+            const { data } = await supabase
+                .from('connected_accounts')
+                .select('platform');
+
+            const connected = (data || []).map(d => d.platform as PlatformId);
+            setConnectedPlatformIds(connected);
+
+            // Auto-select all connected platforms by default
+            setSelectedPlatforms(connected);
+
+            // If only one platform, set it as active tab instead of 'shared'
+            if (connected.length === 1) {
+                setActiveTab(connected[0]);
+            }
+
+            setIsLoading(false);
+        }
+        loadConnectedPlatforms();
+    }, []);
+
+    // Get platforms that are connected (with full platform info)
+    const connectedPlatforms = useMemo(() => {
+        return PLATFORMS.filter(p => connectedPlatformIds.includes(p.id));
+    }, [connectedPlatformIds]);
+
+    // Show shared tab only if multiple platforms are connected
+    const showSharedTab = connectedPlatforms.length > 1;
+
     const togglePlatform = (id: PlatformId) => {
         setSelectedPlatforms(prev => {
             const newPlatforms = prev.includes(id)
                 ? prev.filter(p => p !== id)
                 : [...prev, id];
 
-            // If removing the active tab platform, switch to shared
+            // If removing the active tab platform, switch to shared or first available
             if (!newPlatforms.includes(id) && activeTab === id) {
-                setActiveTab('shared');
+                if (showSharedTab) {
+                    setActiveTab('shared');
+                } else if (newPlatforms.length > 0) {
+                    setActiveTab(newPlatforms[0]);
+                }
             }
 
             return newPlatforms;
@@ -171,53 +210,68 @@ export default function PostComposer() {
                 </div>
 
                 {/* Platform Selection */}
-                <div className={styles.platformToggle}>
-                    {PLATFORMS.map(platform => (
-                        <button
-                            key={platform.id}
-                            className={`${styles.platformBtn} ${selectedPlatforms.includes(platform.id) ? styles.active : ''}`}
-                            onClick={() => togglePlatform(platform.id)}
-                            type="button"
-                        >
-                            <span>{platform.icon}</span>
-                            <span>{platform.name}</span>
-                        </button>
-                    ))}
-                </div>
-
-                {/* Content Tabs */}
-                <div className={styles.contentTabs}>
-                    <button
-                        className={`${styles.contentTab} ${activeTab === 'shared' ? styles.activeTab : ''}`}
-                        onClick={() => setActiveTab('shared')}
-                        type="button"
-                    >
-                        <span>📝</span>
-                        <span>Shared Content</span>
-                    </button>
-
-                    {selectedPlatforms.map(platformId => {
-                        const platform = PLATFORMS.find(p => p.id === platformId)!;
-                        const content = getContentForPlatform(platformId);
-                        const status = getCharStatus(content, platformId);
-                        const isCustom = hasCustomContent(platformId);
-
-                        return (
+                {isLoading ? (
+                    <div className={styles.platformToggle}>
+                        <span className={styles.loadingText}>Loading connected platforms...</span>
+                    </div>
+                ) : connectedPlatforms.length === 0 ? (
+                    <div className={styles.noPlatforms}>
+                        <span>🔌</span>
+                        <p>No platforms connected yet.</p>
+                        <a href="/settings" className={styles.connectLink}>Connect a platform in Settings →</a>
+                    </div>
+                ) : (
+                    <div className={styles.platformToggle}>
+                        {connectedPlatforms.map(platform => (
                             <button
-                                key={platformId}
-                                className={`${styles.contentTab} ${activeTab === platformId ? styles.activeTab : ''} ${status === 'error' ? styles.errorTab : ''}`}
-                                onClick={() => initializePlatformContent(platformId)}
+                                key={platform.id}
+                                className={`${styles.platformBtn} ${selectedPlatforms.includes(platform.id) ? styles.active : ''}`}
+                                onClick={() => togglePlatform(platform.id)}
                                 type="button"
                             >
-                                <span style={{ color: platform.color }}>{platform.icon}</span>
+                                <span>{platform.icon}</span>
                                 <span>{platform.name}</span>
-                                {isCustom && <span className={styles.customBadge}>✎</span>}
-                                {status === 'error' && <span className={styles.errorIndicator}>!</span>}
                             </button>
-                        );
-                    })}
-                </div>
+                        ))}
+                    </div>
+                )}
 
+                {/* Content Tabs - Only show if platforms are connected */}
+                {connectedPlatforms.length > 0 && (
+                    <div className={styles.contentTabs}>
+                        {showSharedTab && (
+                            <button
+                                className={`${styles.contentTab} ${activeTab === 'shared' ? styles.activeTab : ''}`}
+                                onClick={() => setActiveTab('shared')}
+                                type="button"
+                            >
+                                <span>📝</span>
+                                <span>Shared Content</span>
+                            </button>
+                        )}
+
+                        {selectedPlatforms.map(platformId => {
+                            const platform = PLATFORMS.find(p => p.id === platformId)!;
+                            const content = getContentForPlatform(platformId);
+                            const status = getCharStatus(content, platformId);
+                            const isCustom = hasCustomContent(platformId);
+
+                            return (
+                                <button
+                                    key={platformId}
+                                    className={`${styles.contentTab} ${activeTab === platformId ? styles.activeTab : ''} ${status === 'error' ? styles.errorTab : ''}`}
+                                    onClick={() => initializePlatformContent(platformId)}
+                                    type="button"
+                                >
+                                    <span style={{ color: platform.color }}>{platform.icon}</span>
+                                    <span>{platform.name}</span>
+                                    {isCustom && <span className={styles.customBadge}>✎</span>}
+                                    {status === 'error' && <span className={styles.errorIndicator}>!</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
                 <div className={styles.editorCard}>
                     {/* Tab Info Header */}
                     <div className={styles.tabInfo}>

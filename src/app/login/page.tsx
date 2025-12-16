@@ -48,7 +48,7 @@ export default function LoginPage() {
             <div className={styles.card}>
                 <div className={styles.header}>
                     <span className={styles.logo}>🚀</span>
-                    <h1>PostPilot</h1>
+                    <h1>SocialsGenie</h1>
                     <p>AI-Powered Social Media Management</p>
                 </div>
 

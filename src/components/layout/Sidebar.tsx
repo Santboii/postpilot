@@ -41,7 +41,7 @@ export default function Sidebar() {
         <aside className={styles.sidebar}>
             <div className={styles.logo}>
                 <span className={styles.logoIcon}>🚀</span>
-                <span className={styles.logoText}>PostPilot</span>
+                <span className={styles.logoText}>SocialsGenie</span>
             </div>
 
             <nav className={styles.nav}>
@@ -70,6 +70,12 @@ export default function Sidebar() {
                     <span>✨</span>
                     <span>Create with AI</span>
                 </Link>
+
+                <div className={styles.legalLinks}>
+                    <Link href="/terms">Terms</Link>
+                    <span>·</span>
+                    <Link href="/privacy">Privacy</Link>
+                </div>
 
                 <div className={styles.userSection}>
                     <div className={styles.avatar}>{userInitial}</div>
