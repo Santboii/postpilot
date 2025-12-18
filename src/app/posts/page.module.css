@@ -311,6 +311,19 @@
     border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
+.mediaBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    border: 1px solid var(--border-subtle);
+}
+
 .postContent {
     font-size: var(--text-sm);
     color: var(--text-secondary);

@@ -71,12 +71,6 @@ export default function Sidebar() {
                     <span>Create with AI</span>
                 </Link>
 
-                <div className={styles.legalLinks}>
-                    <Link href="/terms">Terms</Link>
-                    <span>·</span>
-                    <Link href="/privacy">Privacy</Link>
-                </div>
-
                 <div className={styles.userSection}>
                     <div className={styles.avatar}>{userInitial}</div>
                     <div className={styles.userInfo}>
@@ -85,6 +79,12 @@ export default function Sidebar() {
                             Sign Out
                         </button>
                     </div>
+                </div>
+
+                <div className={styles.legalLinks}>
+                    <Link href="/terms">Terms</Link>
+                    <span>·</span>
+                    <Link href="/privacy">Privacy</Link>
                 </div>
             </div>
         </aside>

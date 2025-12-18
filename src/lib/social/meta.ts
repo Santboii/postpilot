@@ -166,8 +166,73 @@ export async function getUserPages(accessToken: string): Promise<MetaPage[]> {
 export async function postToFacebookPage(
     pageId: string,
     pageAccessToken: string,
-    message: string
+    message: string,
+    mediaUrls: string[] = []
 ): Promise<{ id: string }> {
+    // Case 1: Multiple images - upload each then attach to feed post
+    if (mediaUrls.length > 1) {
+        // Upload all photos as unpublished
+        const mediaIds = await Promise.all(mediaUrls.map(async (url) => {
+            const response = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    url,
+                    published: false,
+                    access_token: pageAccessToken,
+                }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error?.message || 'Failed to upload photo for multi-image post');
+            }
+
+            const data = await response.json();
+            return data.id as string;
+        }));
+
+        // Publish feed post with attached media
+        const response = await fetch(`${GRAPH_API_BASE}/${pageId}/feed`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message,
+                attached_media: mediaIds.map(id => ({ media_fbid: id })),
+                access_token: pageAccessToken,
+            }),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error?.message || 'Failed to publish multi-photo post');
+        }
+
+        return response.json();
+    }
+
+    // Case 2: Single image - post directly to photos endpoint
+    if (mediaUrls.length === 1) {
+        const response = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: mediaUrls[0],
+                caption: message,
+                access_token: pageAccessToken,
+            }),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error?.message || 'Failed to post photo');
+        }
+
+        const result = await response.json();
+        return { id: result.post_id || result.id };
+    }
+
+    // Case 3: Text only - post to feed
     const response = await fetch(`${GRAPH_API_BASE}/${pageId}/feed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

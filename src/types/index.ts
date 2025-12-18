@@ -7,6 +7,7 @@ export interface Platform {
   icon: string;
   color: string;
   maxLength?: number;
+  maxMedia?: number;
   supportsImages: boolean;
   supportsVideo: boolean;
   connected: boolean;
@@ -89,6 +90,7 @@ export const PLATFORMS: Platform[] = [
     icon: '𝕏',
     color: '#1da1f2',
     maxLength: 280,
+    maxMedia: 4,
     supportsImages: true,
     supportsVideo: true,
     connected: false,
@@ -98,6 +100,7 @@ export const PLATFORMS: Platform[] = [
     name: 'Instagram',
     icon: '📷',
     color: '#e4405f',
+    maxMedia: 10,
     supportsImages: true,
     supportsVideo: true,
     connected: false,
@@ -108,6 +111,7 @@ export const PLATFORMS: Platform[] = [
     icon: 'in',
     color: '#0a66c2',
     maxLength: 3000,
+    maxMedia: 9,
     supportsImages: true,
     supportsVideo: true,
     connected: false,
@@ -118,6 +122,7 @@ export const PLATFORMS: Platform[] = [
     icon: 'f',
     color: '#1877f2',
     maxLength: 63206,
+    maxMedia: 10,
     supportsImages: true,
     supportsVideo: true,
     connected: false,
@@ -128,6 +133,7 @@ export const PLATFORMS: Platform[] = [
     icon: '@',
     color: '#000000',
     maxLength: 500,
+    maxMedia: 10,
     supportsImages: true,
     supportsVideo: true,
     connected: false,
@@ -152,4 +158,15 @@ export function getCharacterLimit(platformId: PlatformId): number | undefined {
 export function isOverLimit(content: string, platformId: PlatformId): boolean {
   const limit = getCharacterLimit(platformId);
   return limit !== undefined && content.length > limit;
+}
+
+export interface BrandProfile {
+  id: string;
+  user_id: string;
+  brand_name: string;
+  audience: string;
+  tone: string;
+  examples: string[];
+  created_at: string;
+  updated_at: string;
 }

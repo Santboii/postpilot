@@ -5,11 +5,11 @@ import { postToFacebookPage } from '@/lib/social/meta';
 
 export async function POST(request: NextRequest) {
     try {
-        const { postId, content } = await request.json();
+        const { postId, content, media } = await request.json();
 
-        if (!content) {
+        if (!content && (!media || media.length === 0)) {
             return NextResponse.json(
-                { error: 'Content is required' },
+                { error: 'Content or media is required' },
                 { status: 400 }
             );
         }
@@ -70,7 +70,14 @@ export async function POST(request: NextRequest) {
 
         // Post to first page (in future, let user choose)
         const page = pages[0];
-        const result = await postToFacebookPage(page.id, page.accessToken, content);
+
+        // Extract all image URLs
+        // We now support multi-photo posts via the updated client
+        const mediaUrls = (media || [])
+            .filter((m: any) => m.type === 'image')
+            .map((m: any) => m.url);
+
+        const result = await postToFacebookPage(page.id, page.accessToken, content || '', mediaUrls);
 
         // Update post status if postId provided
         if (postId) {

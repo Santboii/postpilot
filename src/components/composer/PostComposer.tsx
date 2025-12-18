@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { PlatformId, PLATFORMS, getCharacterLimit, Platform } from '@/types';
+import { PlatformId, PLATFORMS, getCharacterLimit, Platform, MediaAttachment, generateId } from '@/types';
 import { createPost } from '@/lib/db';
 import { getSupabase } from '@/lib/supabase';
 import styles from './Composer.module.css';
@@ -77,6 +77,11 @@ export default function PostComposer() {
 
     const togglePlatform = (id: PlatformId) => {
         setSelectedPlatforms(prev => {
+            // Prevent deselecting the last platform
+            if (prev.includes(id) && prev.length === 1) {
+                return prev;
+            }
+
             const newPlatforms = prev.includes(id)
                 ? prev.filter(p => p !== id)
                 : [...prev, id];
@@ -114,6 +119,12 @@ export default function PostComposer() {
                 ...prev,
                 [activeTab]: value,
             }));
+
+            // If only one platform is connected, we treat the platform content as shared content too
+            // This ensures validation passes (which checks sharedContent) and keeps data in sync
+            if (!showSharedTab) {
+                setSharedContent(value);
+            }
         }
     };
 
@@ -145,6 +156,27 @@ export default function PostComposer() {
         }
     };
 
+    const getMaxMedia = (): number => {
+        // Find the strictest limit among selected platforms
+        // If no platforms selected, default to 4 (Twitter limit) as a baseline
+        if (selectedPlatforms.length === 0) return 4;
+
+        const limits = selectedPlatforms.map(id => {
+            const platform = PLATFORMS.find(p => p.id === id);
+            return platform?.maxMedia || 4;
+        });
+
+        return Math.min(...limits);
+    };
+
+    const validateMediaCount = (count: number): string | null => {
+        const max = getMaxMedia();
+        if (count > max) {
+            return `Too many images for selected platforms (max ${max})`;
+        }
+        return null;
+    };
+
     // Image upload handlers
     const handleFileSelect = (files: FileList | null) => {
         if (!files) return;
@@ -155,8 +187,24 @@ export default function PostComposer() {
 
         if (imageFiles.length === 0) return;
 
-        // Limit to 4 images total
-        const newImages = [...selectedImages, ...imageFiles].slice(0, 4);
+        const max = getMaxMedia();
+        const currentCount = selectedImages.length;
+        const newCount = currentCount + imageFiles.length;
+
+        // If trying to add more than allowed global max (10 for FB/Insta)
+        if (newCount > 10) {
+            setError(`Cannot upload more than 10 images total`);
+            return;
+        }
+
+        // Warning if exceeding platform limits
+        if (newCount > max) {
+            setError(`Note: Some selected platforms only support ${max} images`);
+        } else {
+            setError(null);
+        }
+
+        const newImages = [...selectedImages, ...imageFiles];
         setSelectedImages(newImages);
 
         // Generate previews
@@ -226,19 +274,83 @@ export default function PostComposer() {
         });
     };
 
+    const hasValidContent = (): boolean => {
+        if (!sharedContent.trim()) return false;
+        if (selectedPlatforms.length === 0) return false;
+        // We still check if platforms have content if we want to be strict, but the user requirement
+        // specifically asked for "shared is empty; and that it is required". 
+        // So strict requirement is sharedContent. 
+        return true;
+    };
+
+    const getDisabledReason = (): string | undefined => {
+        if (isSubmitting) return 'Publishing in progress...';
+        if (!sharedContent.trim()) return 'Shared content is required';
+        if (selectedPlatforms.length === 0) return 'Select at least one platform';
+
+        // Media validation
+        const mediaError = validateMediaCount(selectedImages.length);
+        if (mediaError) return mediaError;
+
+        if (hasAnyError()) return 'Fix character limit errors first';
+        if (scheduleEnabled && !canSchedule) return 'Select date and time';
+        return undefined;
+    };
+
+    const disabledReason = getDisabledReason();
+
+    const uploadImages = async (): Promise<MediaAttachment[]> => {
+        if (selectedImages.length === 0) return [];
+
+        const supabase = getSupabase();
+        const uploadedMedia: MediaAttachment[] = [];
+
+        for (const file of selectedImages) {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${generateId()}.${fileExt}`;
+            const filePath = `${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('post-media')
+                .upload(filePath, file);
+
+            if (uploadError) {
+                console.error('Error uploading image:', uploadError);
+                throw new Error(`Failed to upload image: ${file.name}`);
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('post-media')
+                .getPublicUrl(filePath);
+
+            uploadedMedia.push({
+                id: generateId(),
+                type: 'image',
+                url: publicUrl,
+                altText: file.name,
+            });
+        }
+        return uploadedMedia;
+    };
+
     const handleSubmit = async (status: 'draft' | 'scheduled' = 'draft') => {
-        if (!sharedContent.trim() || selectedPlatforms.length === 0) return;
+        if (!hasValidContent()) return;
 
         setIsSubmitting(true);
         setError(null);
 
         try {
+            // Upload images first
+            const uploadedMedia = await uploadImages();
+
             const scheduledAt = status === 'scheduled' ? getScheduledDateTime() : undefined;
             await createPost({
                 content: sharedContent,
                 platforms: selectedPlatforms,
                 status,
                 scheduledAt,
+                platformContent,
+                media: uploadedMedia,
             });
             router.push('/');
         } catch (err) {
@@ -305,16 +417,35 @@ export default function PostComposer() {
                             </p>
                         ) : (
                             <div className={styles.tabDescriptionRow}>
-                                <p className={styles.tabDescription}>
-                                    ✏️ Customizing for <strong>{PLATFORMS.find(p => p.id === activeTab)?.name}</strong> only
-                                </p>
-                                <button
-                                    className={styles.revertBtn}
-                                    onClick={() => clearPlatformContent(activeTab as PlatformId)}
-                                    type="button"
-                                >
-                                    ↩ Use shared
-                                </button>
+                                {showSharedTab ? (
+                                    <>
+                                        <p className={styles.tabDescription}>
+                                            ✏️ Customizing for <strong>{PLATFORMS.find(p => p.id === activeTab)?.name}</strong> only
+                                        </p>
+                                        <div className={styles.tabActions}>
+                                            <button
+                                                className={styles.secondaryActionBtn}
+                                                onClick={() => setActiveTab('shared')}
+                                                type="button"
+                                                title="Return to editing shared content (keeps your changes here)"
+                                            >
+                                                Edit Shared
+                                            </button>
+                                            <button
+                                                className={styles.revertBtn}
+                                                onClick={() => clearPlatformContent(activeTab as PlatformId)}
+                                                type="button"
+                                                title="Discard custom changes and use shared content"
+                                            >
+                                                ↩ Use shared
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <p className={styles.tabDescription}>
+                                        ✏️ Creating post for <strong>{PLATFORMS.find(p => p.id === activeTab)?.name}</strong>
+                                    </p>
+                                )}
                             </div>
                         )}
                     </div>
@@ -448,8 +579,9 @@ export default function PostComposer() {
                         <button
                             className={styles.secondaryBtn}
                             onClick={() => handleSubmit('draft')}
-                            disabled={isSubmitting || !sharedContent.trim()}
+                            disabled={isSubmitting || !hasValidContent()}
                             type="button"
+                            title={!hasValidContent() ? 'Content required to save draft' : undefined}
                         >
                             <span className={styles.btnIcon}>💾</span>
                             <span>Save Draft</span>
@@ -457,9 +589,9 @@ export default function PostComposer() {
                         <button
                             className={`${styles.primaryBtn} ${hasAnyError() ? styles.errorBtn : ''}`}
                             onClick={() => handleSubmit('scheduled')}
-                            disabled={isSubmitting || !sharedContent.trim() || selectedPlatforms.length === 0 || hasAnyError() || (scheduleEnabled && !canSchedule)}
+                            disabled={!!disabledReason}
                             type="button"
-                            title={hasAnyError() ? 'Fix character limit errors first' : (scheduleEnabled && !canSchedule) ? 'Select date and time' : undefined}
+                            title={disabledReason}
                         >
                             {isSubmitting ? (
                                 <>

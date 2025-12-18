@@ -241,6 +241,16 @@ function PostsPageContent() {
                                     <span className={`${styles.statusBadge} ${status.className}`}>
                                         {status.icon} {status.label}
                                     </span>
+                                    {post.media && post.media.length > 0 && (
+                                        <span className={styles.mediaBadge} title={`${post.media.length} image${post.media.length > 1 ? 's' : ''} attached`}>
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke="currentColor" strokeWidth="2" />
+                                                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
+                                                <path d="M21 15L16 10L5 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                            {post.media.length}
+                                        </span>
+                                    )}
                                     <span className={`${styles.postDate} ${dateInfo.className}`}>
                                         {dateInfo.icon} {dateInfo.label} {dateInfo.date}
                                     </span>

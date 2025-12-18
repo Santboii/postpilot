@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { PLATFORMS, PlatformId } from '@/types';
 import { getSupabase } from '@/lib/supabase';
@@ -81,6 +82,32 @@ export default function SettingsPage() {
                     <button onClick={() => setMessage(null)}>×</button>
                 </div>
             )}
+
+            <section className={styles.section}>
+                <h2 className={styles.sectionTitle}>
+                    <span>🧬</span>
+                    <span>AI & Content</span>
+                </h2>
+
+                <div className={styles.platformGrid}>
+                    <Link href="/settings/brand" className={styles.platformRow}>
+                        <div className={styles.platformInfo}>
+                            <div className={styles.platformIcon} style={{ background: 'var(--bg-elevated)', color: 'var(--accent-purple)' }}>
+                                ✨
+                            </div>
+                            <div>
+                                <div className={styles.platformName}>Brand DNA</div>
+                                <div className={styles.platformStatus}>
+                                    Configure your voice, audience, and style
+                                </div>
+                            </div>
+                        </div>
+                        <div style={{ color: 'var(--text-muted)' }}>
+                            →
+                        </div>
+                    </Link>
+                </div>
+            </section>
 
             <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>
