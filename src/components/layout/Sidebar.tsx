@@ -15,7 +15,6 @@ interface NavItem {
 
 const staticNavItems: NavItem[] = [
     { label: 'Dashboard', href: '/', icon: '🏠' },
-    { label: 'AI Compose', href: '/ai-compose', icon: '✨' },
     { label: 'Write Post', href: '/compose', icon: '✏️' },
     { label: 'Calendar', href: '/calendar', icon: '📅' },
     { label: 'Posts', href: '/posts', icon: '📝' },
@@ -66,11 +65,6 @@ export default function Sidebar() {
             </nav>
 
             <div className={styles.footer}>
-                <Link href="/ai-compose" className={styles.composeBtn}>
-                    <span>✨</span>
-                    <span>Create with AI</span>
-                </Link>
-
                 <div className={styles.userSection}>
                     <div className={styles.avatar}>{userInitial}</div>
                     <div className={styles.userInfo}>

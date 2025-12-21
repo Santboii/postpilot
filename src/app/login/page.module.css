@@ -141,3 +141,27 @@
 .toggleBtn:hover {
     opacity: 0.8;
 }
+
+.legalLinks {
+    margin-top: var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+}
+
+.legalLinks a {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+.legalLinks a:hover {
+    color: var(--accent-purple);
+}
+
+.divider {
+    color: var(--text-muted);
+    opacity: 0.5;
+}

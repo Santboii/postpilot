@@ -1,72 +1,83 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { GoogleGeminiService } from '@/lib/ai/google';
+import { BrandProfile } from '@/types';
+import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-        return NextResponse.json(
-            { message: 'OpenAI API key not configured. Set OPENAI_API_KEY in your environment.' },
-            { status: 500 }
-        );
-    }
-
+export async function POST(req: Request) {
     try {
-        const { prompt } = await request.json();
+        const supabase = await createClient();
 
-        if (!prompt) {
+        // 1. Auth Check
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // 2. Parse Request
+        const { topic, platform, includeImage } = await req.json();
+        if (!topic || !platform) {
+            return NextResponse.json({ error: 'Missing topic or platform' }, { status: 400 });
+        }
+
+        // 3. Fetch Brand Profile
+        const { data: profile, error: profileError } = await supabase
+            .from('brand_profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+
+        if (profileError || !profile) {
+            console.error('Brand Profile Error:', profileError);
             return NextResponse.json(
-                { message: 'Prompt is required' },
-                { status: 400 }
+                { error: 'Brand profile not found. Please set up your Brand DNA in Settings first.' },
+                { status: 404 }
             );
         }
 
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
+        // 4. Instantiate AI Service
+        // In a real app, this key would come from process.env.GOOGLE_API_KEY
+        // For now, users must have it in .env.local
+        const apiKey = process.env.GOOGLE_API_KEY;
+        if (!apiKey) {
+            return NextResponse.json({ error: 'AI Service Misconfigured (Missing Keys)' }, { status: 500 });
+        }
+
+        const aiService = new GoogleGeminiService(apiKey);
+
+        // 5. Generate Text
+        const generatedPost = await aiService.generatePost({
+            topic,
+            platform,
+            brandProfile: {
+                name: profile.brand_name,
+                audience: profile.audience,
+                tone: profile.tone,
+                examples: profile.examples,
             },
-            body: JSON.stringify({
-                model: 'gpt-4o',
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'You are an expert social media copywriter. You write engaging, platform-appropriate content that drives engagement. Always respond with just the post content, nothing else.',
-                    },
-                    {
-                        role: 'user',
-                        content: prompt,
-                    },
-                ],
-                max_tokens: 1000,
-                temperature: 0.7,
-            }),
         });
 
-        if (!response.ok) {
-            const error = await response.json();
-            console.error('OpenAI API error:', error);
-            return NextResponse.json(
-                { message: error.error?.message || 'OpenAI API error' },
-                { status: response.status }
-            );
+        let imageUrl = null;
+
+        // 6. Generate Image (if requested)
+        if (includeImage && generatedPost.imagePrompt) {
+            try {
+                // Passing the AI-generated prompt to the image model
+                imageUrl = await aiService.generateImage(generatedPost.imagePrompt);
+            } catch (imgError) {
+                console.error('Image generation failed:', imgError);
+                // We don't fail the whole request if image fails, just return null
+            }
         }
 
-        const data = await response.json();
-        const content = data.choices[0]?.message?.content;
+        return NextResponse.json({
+            post: generatedPost,
+            imageUrl
+        });
 
-        if (!content) {
-            return NextResponse.json(
-                { message: 'No content generated' },
-                { status: 500 }
-            );
-        }
-
-        return NextResponse.json({ content });
-    } catch (error) {
-        console.error('Generate error:', error);
+    } catch (error: any) {
+        console.error('AI Generation Error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
         return NextResponse.json(
-            { message: 'Failed to generate content' },
+            { error: error.message || 'Failed to generate content' },
             { status: 500 }
         );
     }

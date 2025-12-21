@@ -11,17 +11,21 @@ function AppContent({ children }: { children: ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
 
-    const isPublicRoute = pathname === '/login';
+    // Public routes that don't require authentication
+    const publicRoutes = ['/login', '/landing', '/privacy', '/terms'];
+    const isPublicRoute = publicRoutes.includes(pathname);
 
     useEffect(() => {
         if (!loading) {
             if (!user && !isPublicRoute) {
-                router.push('/login');
-            } else if (user && isPublicRoute) {
+                router.push('/landing');
+            } else if (user && pathname === '/landing') {
+                router.push('/');
+            } else if (user && pathname === '/login') {
                 router.push('/');
             }
         }
-    }, [user, loading, isPublicRoute, router]);
+    }, [user, loading, isPublicRoute, pathname, router]);
 
     // Show loading state
     if (loading) {
