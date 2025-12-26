@@ -44,8 +44,9 @@ Platform config is in `src/types/index.ts`.
 ```
 src/
 ├── app/                    # Next.js App Router pages
-│   ├── api/ai/            # AI endpoints (generate, optimize-prompt, generate-image)
-│   ├── api/publish/       # Social media publishing (facebook, etc.)
+│   ├── api/ai/            # AI endpoints (generate, optimize-prompt, optimize, generate-image)
+│   ├── api/auth/          # Auth endpoints (linkedin, etc.)
+│   ├── api/publish/       # Social media publishing (linkedin, facebook, etc.)
 │   ├── compose/           # Post composer page
 │   ├── posts/             # Posts list/management
 │   ├── calendar/          # Calendar view
@@ -61,7 +62,7 @@ src/
 ├── lib/
 │   ├── ai/                # google.ts - Gemini AI utilities
 │   ├── supabase/          # client.ts, server.ts
-│   └── social/            # meta.ts - Facebook/Instagram APIs
+│   ├── social/            # meta.ts, linkedin.ts - Social Platform APIs
 └── types/index.ts         # All TypeScript types
 ```
 

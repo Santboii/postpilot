@@ -86,6 +86,11 @@ export default function SettingsPage() {
         window.location.href = '/api/auth/x';
     };
 
+    const handleConnectLinkedIn = () => {
+        // Redirect to LinkedIn OAuth endpoint
+        window.location.href = '/api/auth/linkedin';
+    };
+
     const handleDisconnect = async (platformId: PlatformId) => {
         if (!confirm(`Disconnect ${platformId}? You'll need to reconnect to post.`)) return;
 
@@ -138,7 +143,8 @@ export default function SettingsPage() {
     // Platforms with real OAuth support
     const metaPlatforms: PlatformId[] = ['facebook', 'instagram'];
     const xPlatform: PlatformId = 'twitter';
-    const comingSoonPlatforms: PlatformId[] = ['linkedin', 'threads'];
+    const linkedinPlatform: PlatformId = 'linkedin';
+    const comingSoonPlatforms: PlatformId[] = ['threads'];
 
     return (
         <div className={styles.settingsContainer}>
@@ -277,6 +283,58 @@ export default function SettingsPage() {
                                         <button
                                             className={styles.disconnectBtn}
                                             onClick={() => handleDisconnect(xPlatform)}
+                                            type="button"
+                                        >
+                                            Disconnect
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+
+                {/* LinkedIn Platform */}
+                <div className={styles.platformGroup}>
+                    <div className={styles.groupHeader}>
+                        <span>In LinkedIn</span>
+                        <button
+                            className="btn btn-primary"
+                            onClick={handleConnectLinkedIn}
+                            type="button"
+                        >
+                            {getConnection(linkedinPlatform)
+                                ? '🔄 Reconnect'
+                                : '🔗 Connect LinkedIn'}
+                        </button>
+                    </div>
+
+                    <div className={styles.platformGrid}>
+                        {(() => {
+                            const platform = PLATFORMS.find(p => p.id === linkedinPlatform);
+                            const connection = getConnection(linkedinPlatform);
+                            if (!platform) return null;
+
+                            return (
+                                <div className={styles.platformRow}>
+                                    <div className={styles.platformInfo}>
+                                        <div className={styles.platformIcon} style={{ color: platform.color }}>
+                                            {getPlatformIcon(linkedinPlatform, 22)}
+                                        </div>
+                                        <div>
+                                            <div className={styles.platformName}>{platform.name}</div>
+                                            <div className={styles.platformStatus}>
+                                                {connection
+                                                    ? `✓ Connected as ${connection.platform_username || 'Business Page'}`
+                                                    : 'Not connected'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {connection && (
+                                        <button
+                                            className={styles.disconnectBtn}
+                                            onClick={() => handleDisconnect(linkedinPlatform)}
                                             type="button"
                                         >
                                             Disconnect

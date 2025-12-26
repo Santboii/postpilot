@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGeminiService } from '@/lib/ai/google';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
@@ -18,78 +18,26 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Missing prompt' }, { status: 400 });
         }
 
-        // 3. Fetch Brand Profile for context
-        const { data: profile } = await supabase
-            .from('brand_profiles')
-            .select('brand_name, tone, target_audience, key_messages')
-            .eq('user_id', user.id)
-            .single();
-
-        // 4. Initialize AI
+        // 3. Initialize AI Service
         const apiKey = process.env.GOOGLE_API_KEY;
         if (!apiKey) {
             return NextResponse.json({ error: 'AI Service Misconfigured' }, { status: 500 });
         }
 
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const aiService = new GoogleGeminiService(apiKey);
 
-        // 5. Build Optimization Prompt
-        const systemPrompt = `
-You are an expert prompt engineer specializing in social media content creation.
-
-TASK: Transform the user's brief idea into a detailed, optimized prompt that will generate better social media content.
-
-USER'S ORIGINAL IDEA:
-"""
-${prompt}
-"""
-
-${platform ? `TARGET PLATFORM: ${platform}` : ''}
-
-${profile ? `
-BRAND CONTEXT:
-- Brand: ${profile.brand_name || 'Not specified'}
-- Tone: ${profile.tone || 'Professional and friendly'}
-- Target Audience: ${profile.target_audience || 'General audience'}
-- Key Messages: ${profile.key_messages?.join(', ') || 'None specified'}
-` : ''}
-
-INSTRUCTIONS:
-- You are a PROMPT ENGINEER, not a copywriter.
-- Do NOT write the social media post.
-- Write a detailed PROMPT that someone else would use to write the post.
-- The user is giving you a simple topic/idea. You must expand it into a sophisticated prompt.
-
-EXAMPLES:
-Input: "Summer sale"
-Output: "Write an energetic and urgent promotional post for our annual Summer Sale, highlighting 50% off discounts on swimwear and accessories. Use a fun, sunny tone and include emojis like ☀️ and 🏖️. Target young adults looking for vacation outfits."
-
-Input: "New coffee flavor launching"
-Output: "Create a cozy and inviting announcement for our new 'Maple Pecan' coffee blend. Describe the warm, nutty aroma and sweet flavor profile. Appeal to office workers looking for a morning treat. Ask followers to tag a coffee buddy."
-
-CURRENT REQUEST:
-- User's Idea: "${prompt}"
-${platform ? `- Target Platform: ${platform}` : ''}
-${profile ? `- Brand Brand: ${profile.brand_name}\n- Tone: ${profile.tone}` : ''}
-
-Your goal is to return ONLY the optimized prompt string.
-`;
-
-        const result = await model.generateContent(systemPrompt);
-        const response = await result.response;
-        const optimizedPrompt = response.text().trim();
+        // 4. Optimize Prompt
+        const optimizedPrompt = await aiService.optimizePrompt(prompt, platform);
 
         return NextResponse.json({
             optimizedPrompt,
             originalPrompt: prompt
         });
 
-    } catch (error: unknown) {
+    } catch (error: any) {
         console.error('Optimize Prompt Error:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to optimize prompt';
         return NextResponse.json(
-            { error: errorMessage },
+            { error: error.message || 'Failed to optimize prompt' },
             { status: 500 }
         );
     }

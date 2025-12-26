@@ -432,6 +432,37 @@ export async function publishPost(id: string): Promise<Post> {
         }
     }
 
+    // Publish to LinkedIn if it's a selected platform
+    if (post.platforms.includes('linkedin')) {
+        try {
+            // Use custom content if available, otherwise shared content
+            const contentToPublish = post.platformContent?.linkedin || post.content;
+
+            const response = await fetch('/api/publish/linkedin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    postId: id,
+                    content: contentToPublish,
+                    media: post.media,
+                }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to publish to LinkedIn');
+            }
+
+            results.push({ platform: 'linkedin', success: true });
+        } catch (error) {
+            results.push({
+                platform: 'linkedin',
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
     // Check if any platform succeeded
     const anySuccess = results.some(r => r.success);
     const allFailed = results.length > 0 && results.every(r => !r.success);
