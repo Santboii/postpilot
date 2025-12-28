@@ -1,0 +1,434 @@
+/* Pricing Page Styles - Light Theme */
+.container {
+    min-height: 100vh;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    overflow-x: hidden;
+    position: relative;
+    padding-bottom: var(--space-20);
+}
+
+/* Background Orbs (Matching Landing Page) */
+.bgOrbs {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+}
+
+.orb1,
+.orb2 {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.4;
+    animation: float 20s ease-in-out infinite;
+}
+
+.orb1 {
+    width: 600px;
+    height: 600px;
+    background: var(--accent-purple);
+    top: -200px;
+    right: -200px;
+}
+
+.orb2 {
+    width: 500px;
+    height: 500px;
+    background: var(--accent-blue);
+    bottom: -150px;
+    left: -150px;
+    animation-delay: -7s;
+}
+
+/* Header */
+.header {
+    position: relative;
+    z-index: 10;
+    padding: 8rem var(--space-6) var(--space-8);
+    /* Increased top padding, reduced bottom */
+    text-align: center;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.overline {
+    display: inline-block;
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    background: var(--gradient-primary);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: var(--space-2);
+    /* Reduced */
+}
+
+.title {
+    font-size: 2.5rem;
+    /* Reduced from clamp(2.5, 5vw, 4rem) */
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: var(--space-3);
+    /* Reduced */
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+}
+
+.subtitle {
+    font-size: var(--text-lg);
+    /* Reduced from xl */
+    color: var(--text-secondary);
+    line-height: 1.5;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* Toggle */
+.toggleContainer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+    margin: var(--space-6) 0 var(--space-8);
+    /* Tightened margins */
+}
+
+.toggleLabel {
+    font-size: var(--text-base);
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.toggleLabel.active {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.toggleSwitch {
+    position: relative;
+    width: 56px;
+    height: 32px;
+    background: var(--bg-tertiary);
+    border-radius: 99px;
+    cursor: pointer;
+    border: 1px solid var(--border-medium);
+    transition: all 0.2s;
+}
+
+.toggleSlider {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 24px;
+    height: 24px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
+}
+
+.toggleSwitch.checked {
+    background: var(--accent-purple);
+    border-color: var(--accent-purple);
+}
+
+.toggleSwitch.checked .toggleSlider {
+    transform: translateX(24px);
+}
+
+.saveBadge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent-green);
+    background: rgba(16, 185, 129, 0.1);
+    padding: 2px 8px;
+    border-radius: 99px;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Pricing Cards - Grid */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-8);
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 var(--space-6);
+    position: relative;
+    z-index: 10;
+    align-items: center;
+}
+
+/* Base Card Style */
+.card {
+    position: relative;
+    background: var(--bg-card);
+    backdrop-filter: blur(var(--blur-glass));
+    -webkit-backdrop-filter: blur(var(--blur-glass));
+    border: 1px solid var(--border-subtle);
+    border-radius: 24px;
+    padding: var(--space-8);
+    transition: transform 0.3s, box-shadow 0.3s;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-shadow: var(--shadow-md);
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-xl);
+}
+
+/* Featured Card (Center) */
+.popularCard {
+    background: var(--bg-elevated);
+    border: 2px solid var(--accent-purple);
+    /* Highlight border */
+    box-shadow: var(--shadow-xl), var(--shadow-glow-purple);
+    transform: scale(1.05);
+    z-index: 2;
+}
+
+.popularCard:hover {
+    transform: scale(1.05) translateY(-4px);
+}
+
+.popularBadge {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--gradient-primary);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 99px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    box-shadow: var(--shadow-glow-purple);
+}
+
+/* Card Content */
+.planName {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+}
+
+.planDesc {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+    /* Tightened */
+    min-height: 40px;
+}
+
+.price {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: var(--space-6);
+    /* Tightened */
+    color: var(--text-primary);
+}
+
+.currency {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-right: 2px;
+    color: var(--text-secondary);
+}
+
+.amount {
+    font-size: 3.5rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+}
+
+.period {
+    font-size: 1rem;
+    color: var(--text-muted);
+    margin-left: 4px;
+    font-weight: 400;
+}
+
+/* Buttons */
+.btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border-radius: var(--radius-lg);
+    font-weight: 600;
+    text-align: center;
+    transition: all 0.2s;
+    margin-bottom: var(--space-6);
+    /* Tightened */
+}
+
+.btnDefault {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-medium);
+}
+
+.btnDefault:hover {
+    background: var(--bg-secondary);
+    border-color: var(--text-muted);
+}
+
+.btnPrimary {
+    background: var(--gradient-primary);
+    color: white;
+    box-shadow: var(--shadow-md);
+}
+
+.btnPrimary:hover {
+    box-shadow: var(--shadow-lg), var(--shadow-glow-purple);
+    transform: translateY(-1px);
+}
+
+/* Features List */
+.features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    /* Tightened */
+}
+
+.feature {
+    display: flex;
+    align-items: start;
+    gap: var(--space-3);
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.check {
+    color: var(--accent-purple);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+/* FAQ Section */
+.faqSection {
+    max-width: 800px;
+    margin: 8rem auto 0;
+    /* Fixed undefined variable */
+    padding: 0 var(--space-6);
+    position: relative;
+    z-index: 10;
+}
+
+.divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-medium), transparent);
+    margin: 0 auto 6rem;
+    max-width: 600px;
+    width: 100%;
+}
+
+.faqTitle {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--space-12);
+}
+
+.faqGrid {
+    display: grid;
+    gap: var(--space-6);
+}
+
+.faqItem {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    transition: all 0.2s;
+}
+
+.faqItem:hover {
+    border-color: var(--border-medium);
+    box-shadow: var(--shadow-sm);
+}
+
+.question {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+}
+
+.answer {
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+/* Animations */
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-20px);
+    }
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-6);
+    }
+
+    .card {
+        margin: 0;
+    }
+
+    .popularCard {
+        transform: none;
+        grid-column: span 2;
+    }
+
+    .popularCard:hover {
+        transform: translateY(-4px);
+    }
+}
+
+@media (max-width: 768px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+
+    .popularCard {
+        grid-column: span 1;
+        transform: none;
+    }
+
+    .header {
+        padding-top: var(--space-16);
+    }
+
+    .amount {
+        font-size: 2.5rem;
+    }
+}

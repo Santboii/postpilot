@@ -14,7 +14,7 @@ function AppContent({ children }: { children: ReactNode }) {
     const pathname = usePathname();
 
     // Public routes that don't require authentication
-    const publicRoutes = ['/login', '/landing', '/privacy', '/terms', '/data-deletion-status'];
+    const publicRoutes = ['/login', '/landing', '/privacy', '/terms', '/data-deletion-status', '/pricing'];
     const isPublicRoute = publicRoutes.includes(pathname);
 
     useEffect(() => {

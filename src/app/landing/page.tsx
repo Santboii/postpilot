@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import styles from './landing.module.css';
 import WaitlistForm from '@/components/landing/WaitlistForm';
+import LeadCaptureForm from '@/components/landing/LeadCaptureForm';
 import Image from 'next/image';
+import Navbar from '@/components/landing/Navbar';
 
 export default function LandingPage() {
     return (
@@ -16,35 +18,14 @@ export default function LandingPage() {
             </div>
 
             {/* Navigation */}
-            <nav className={styles.nav}>
-                <div className={styles.navContent}>
-                    <div className={styles.logo}>
-                        <div className={styles.logoIcon}>
-                            <Image
-                                src="/logo.png"
-                                alt="SocialsGenie Logo"
-                                width={0}
-                                height={0}
-                                sizes="100vw"
-                                style={{ width: 'auto', height: '50px' }}
-                            />
-                        </div>
-                        <span className={styles.logoText}>SocialsGenie</span>
-                    </div>
-                    <div className={styles.navLinks}>
-                        <Link href="#features">Features</Link>
-                        <Link href="#how-it-works">How It Works</Link>
-                        <Link href="/login" className={styles.navCta}>Get Started</Link>
-                    </div>
-                </div>
-            </nav>
+            <Navbar />
 
             {/* Hero Section */}
             <section className={styles.hero}>
                 <div className={styles.heroContent}>
-                    <div className={styles.badge}>
-                        <span>✨</span> AI-Powered Social Media Management
-                    </div>
+                    <span className={styles.heroOverline}>
+                        AI-Powered Social Media Management
+                    </span>
                     <h1 className={styles.heroTitle}>
                         Create <span className="text-gradient">Viral Content</span>
                         <br />in Seconds, Not Hours
@@ -314,41 +295,17 @@ export default function LandingPage() {
                 <div className={styles.ctaCard}>
                     <h2>Ready to Transform Your Social Media?</h2>
                     <p>Join thousands of creators and businesses who are saving hours every week with AI-powered content creation.</p>
-                    <Link href="/login" className={styles.ctaPrimary}>
-                        <span>Get Started Free</span>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M5 12h14M12 5l7 7-7 7" />
-                        </svg>
-                    </Link>
+
+                    <div style={{ marginTop: '2rem', marginBottom: '1rem' }}>
+                        <LeadCaptureForm />
+                    </div>
+
                     <p className={styles.ctaNote}>No credit card required • Free forever for basic use</p>
                 </div>
             </section>
 
             {/* Footer */}
-            <footer className={styles.footer}>
-                <div className={styles.footerContent}>
-                    <div className={styles.footerBrand}>
-                        <div className={styles.logoIcon}>
-                            <Image
-                                src="/logo.png"
-                                alt="SocialsGenie Logo"
-                                width={0}
-                                height={0}
-                                sizes="100vw"
-                                style={{ width: 'auto', height: '50px' }}
-                            />
-                        </div>
-                        <span className={styles.logoText}>SocialsGenie</span>
-                    </div>
-                    <div className={styles.footerLinks}>
-                        <Link href="/privacy">Privacy Policy</Link>
-                        <Link href="/terms">Terms of Service</Link>
-                    </div>
-                    <div className={styles.footerCopyright}>
-                        © {new Date().getFullYear()} SocialsGenie. All rights reserved.
-                    </div>
-                </div>
-            </footer>
+            <Footer />
         </div>
     );
 }
