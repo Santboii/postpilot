@@ -81,10 +81,16 @@ export async function GET(request: Request) {
             let finalContent = sourcePost.content;
             let wasRemixed = false;
 
+            // Determine target platforms from slot
+            const targetPlatformIds = (slot.platform_ids && slot.platform_ids.length > 0)
+                ? slot.platform_ids
+                : ['twitter']; // Fallback only if slot is broken/legacy
+
             if (library.auto_remix) {
                 try {
-                    const targetPlatform = slot.platform_ids[0] || 'twitter';
-                    const remixed = await aiService.optimizeContent(sourcePost.content, targetPlatform, 'Maintain brand voice but ensure the content feels fresh and unique.');
+                    // Use the first platform for optimization context
+                    const primaryPlatform = targetPlatformIds[0];
+                    const remixed = await aiService.optimizeContent(sourcePost.content, primaryPlatform, 'Maintain brand voice but ensure the content feels fresh and unique.');
                     finalContent = remixed;
                     wasRemixed = true;
                 } catch (e) {
@@ -115,6 +121,23 @@ export async function GET(request: Request) {
                 console.error('Failed to create instance post:', createError);
                 results.push({ slot: slot.id, error: createError.message });
                 continue;
+            }
+
+            // 3c-2. Assign Platforms to new Post
+            if (newPost) {
+                const platformAssignments = targetPlatformIds.map((pid: string) => ({
+                    post_id: newPost.id,
+                    platform: pid
+                }));
+
+                const { error: platformError } = await supabase
+                    .from('post_platforms')
+                    .insert(platformAssignments);
+
+                if (platformError) {
+                    console.error('Failed to assign platforms to auto-post:', platformError);
+                    // Non-fatal, but logged
+                }
             }
 
             // 3d. Update Source Post metadata (Rotate to back of queue)

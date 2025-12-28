@@ -138,3 +138,50 @@ export function isOverLimit(content: string, platformId: PlatformId): boolean {
     const limit = getCharacterLimit(platformId);
     return limit !== undefined && content.length > limit;
 }
+
+// Library Template types
+export type LibraryTemplateType = 'tips' | 'facts' | 'quotes' | 'promos' | 'custom';
+
+export interface LibraryTemplate {
+    id: LibraryTemplateType;
+    name: string;
+    icon: string;
+    promptPrefix: string;
+    description: string;
+    color: string;
+}
+
+export const LIBRARY_TEMPLATES: LibraryTemplate[] = [
+    {
+        id: 'tips',
+        name: 'Tips & How-tos',
+        icon: '💡',
+        promptPrefix: 'Actionable tips and tutorials about',
+        description: 'Share practical advice and step-by-step guides',
+        color: '#f59e0b',
+    },
+    {
+        id: 'facts',
+        name: 'Fun Facts',
+        icon: '📊',
+        promptPrefix: 'Interesting and shareable facts about',
+        description: 'Engage with surprising information and trivia',
+        color: '#3b82f6',
+    },
+    {
+        id: 'quotes',
+        name: 'Quotes',
+        icon: '💬',
+        promptPrefix: 'Inspirational or thought-provoking quotes about',
+        description: 'Motivate your audience with powerful words',
+        color: '#8b5cf6',
+    },
+    {
+        id: 'promos',
+        name: 'Promos',
+        icon: '🎯',
+        promptPrefix: 'Product highlights and promotional content for',
+        description: 'Showcase your offerings and drive action',
+        color: '#ef4444',
+    },
+];

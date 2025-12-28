@@ -258,10 +258,13 @@ export default function SchedulePage() {
                                     <option value="" disabled>Choose a library...</option>
                                     {libraries.map((lib: any) => (
                                         <option key={lib.id} value={lib.id}>
-                                            {lib.name}
+                                            {lib.name} ({lib.post_count || 0} posts)
                                         </option>
                                     ))}
                                 </select>
+                                <p className={styles.helperText}>
+                                    📚 Posts from this library will be automatically published at this time slot each week.
+                                </p>
                             </div>
 
                             <div className={styles.formGroup}>
@@ -300,9 +303,10 @@ export default function SchedulePage() {
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            )}
-        </div>
+                    </div >
+                </div >
+            )
+            }
+        </div >
     );
 }

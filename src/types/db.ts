@@ -24,7 +24,11 @@ export interface ContentLibrary {
     color: string;
     is_paused: boolean;
     auto_remix: boolean;
-    generate_images?: boolean; // New field
+    generate_images?: boolean;
+    topic_prompt?: string;
+    template_type?: string;
+    ai_settings?: any; // Using any for now to avoid circular deps if needed, or stick to the defined type if available
+    platforms?: PlatformId[];
     created_at: string;
 }
 

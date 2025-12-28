@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { name, color, is_paused, auto_remix, generate_images } = body;
+        const { name, color, is_paused, auto_remix, generate_images, topic_prompt, template_type } = body;
 
         if (!name) {
             return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -57,7 +57,9 @@ export async function POST(request: Request) {
                 color: color || '#6366f1',
                 is_paused: is_paused || false,
                 auto_remix: auto_remix || false,
-                generate_images: generate_images || false
+                generate_images: generate_images || false,
+                topic_prompt: topic_prompt || null,
+                template_type: template_type || 'custom'
             })
             .select()
             .single();

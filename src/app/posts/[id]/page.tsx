@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { use } from 'react';
 import { PlatformId, PLATFORMS, getCharacterLimit, Post } from '@/types';
+import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { getPost, updatePost, deletePost } from '@/lib/db';
 import styles from '@/components/composer/Composer.module.css';
 
@@ -31,6 +32,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     });
     const [activeTab, setActiveTab] = useState<ContentMode>('shared');
     const [error, setError] = useState<string | null>(null);
+    const [allowedPlatforms, setAllowedPlatforms] = useState<PlatformId[] | null>(null);
 
     useEffect(() => {
         async function loadPost() {
@@ -39,6 +41,21 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                 setPost(existingPost);
                 setSharedContent(existingPost.content);
                 setSelectedPlatforms(existingPost.platforms);
+
+                // Fetch library restrictions if applicable
+                if (existingPost.libraryId) {
+                    try {
+                        const res = await fetch(`/api/libraries/${existingPost.libraryId}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data.library.platforms && data.library.platforms.length > 0) {
+                                setAllowedPlatforms(data.library.platforms);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Failed to load library settings:', err);
+                    }
+                }
             }
             setLoading(false);
         }
@@ -46,12 +63,18 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     }, [unwrappedParams.id]);
 
     const togglePlatform = (id: PlatformId) => {
+        if (allowedPlatforms && !allowedPlatforms.includes(id)) return;
+
         setSelectedPlatforms(prev => {
             const newPlatforms = prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id];
             if (!newPlatforms.includes(id) && activeTab === id) setActiveTab('shared');
             return newPlatforms;
         });
     };
+
+    // ...
+
+
 
     const getContentForPlatform = (platformId: PlatformId): string => {
         return platformContent[platformId] || sharedContent;
@@ -165,17 +188,23 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                 </div>
 
                 <div className={styles.platformToggle}>
-                    {PLATFORMS.map(platform => (
-                        <button
-                            key={platform.id}
-                            className={`${styles.platformBtn} ${selectedPlatforms.includes(platform.id) ? styles.active : ''}`}
-                            onClick={() => togglePlatform(platform.id)}
-                            type="button"
-                        >
-                            <span>{platform.icon}</span>
-                            <span>{platform.name}</span>
-                        </button>
-                    ))}
+                    {PLATFORMS.map(platform => {
+                        const isDisabled = allowedPlatforms && !allowedPlatforms.includes(platform.id);
+                        return (
+                            <button
+                                key={platform.id}
+                                className={`${styles.platformBtn} ${selectedPlatforms.includes(platform.id) ? styles.active : ''} ${isDisabled ? styles.disabled : ''}`}
+                                onClick={() => togglePlatform(platform.id)}
+                                type="button"
+                                disabled={!!isDisabled}
+                                title={isDisabled ? 'Not available for this library' : ''}
+                                style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                            >
+                                <span>{getPlatformIcon(platform.id, 16)}</span>
+                                <span>{platform.name}</span>
+                            </button>
+                        );
+                    })}
                 </div>
 
                 <div className={styles.contentTabs}>
@@ -201,7 +230,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                                 onClick={() => initializePlatformContent(platformId)}
                                 type="button"
                             >
-                                <span style={{ color: platform.color }}>{platform.icon}</span>
+                                <span style={{ color: platform.color }}>{getPlatformIcon(platform.id, 16)}</span>
                                 <span>{platform.name}</span>
                                 {isCustom && <span className={styles.customBadge}>✎</span>}
                                 {status === 'error' && <span className={styles.errorIndicator}>!</span>}
@@ -320,7 +349,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                                     <div className={styles.platformBadgeGroup}>
                                         {isCustom && <span className={styles.customLabel}>Custom</span>}
                                         <div className={styles.platformBadge} style={{ color: platform.color }}>
-                                            <span>{platform.icon}</span>
+                                            <span>{getPlatformIcon(platform.id, 16)}</span>
                                             <span>{platform.name}</span>
                                         </div>
                                     </div>
