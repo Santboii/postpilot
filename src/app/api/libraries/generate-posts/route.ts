@@ -77,16 +77,16 @@ export async function POST(request: Request) {
             requestedVariants.push('threads');
         }
         if (targetPlatforms.includes('linkedin')) {
-            platformInstructions.push("- For LinkedIn: Professional, expanded version (100-200 words). Use bullet points if helpful.");
-            requestedVariants.push('linkedin');
+            platformInstructions.push("- For LinkedIn: The Master Content will be used. Ensure Master Content is professional and valuable.");
+            // Do NOT add to requestedVariants. Use Shared.
         }
         if (targetPlatforms.includes('instagram')) {
             platformInstructions.push("- For Instagram: Visual-first caption. Use line breaks for readability.");
             requestedVariants.push('instagram');
         }
         if (targetPlatforms.includes('facebook')) {
-            platformInstructions.push("- For Facebook: Engaging, community-focused, conversational style.");
-            requestedVariants.push('facebook');
+            platformInstructions.push("- For Facebook: The Master Content will be used. Ensure Master Content is engaging.");
+            // Do NOT add to requestedVariants. Use Shared.
         }
 
         const validVariants = requestedVariants.length > 0 ? requestedVariants : ["twitter"];
