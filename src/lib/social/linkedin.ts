@@ -7,7 +7,7 @@ const LINKEDIN_TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken';
 const LINKEDIN_API_URL = 'https://api.linkedin.com';
 
 // API Version for the new Posts API
-const LINKEDIN_API_VERSION = '202401';
+const LINKEDIN_API_VERSION = '202511';
 
 /**
  * Generates the LinkedIn OAuth authorization URL
