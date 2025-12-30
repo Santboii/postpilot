@@ -454,8 +454,8 @@ export default function PostComposer() {
                 libraryId: postMode === 'library' ? selectedLibraryId : undefined,
             });
 
-            if (targetStatus === 'published') {
-                // Trigger immediate publish
+            if (targetStatus === 'published' && postMode !== 'library') {
+                // Trigger immediate publish (only for schedule mode, not library mode)
                 await publishPost(post.id);
             }
 
@@ -754,7 +754,7 @@ export default function PostComposer() {
                         </button>
                         <button
                             className={`${styles.primaryBtn} ${hasAnyError() ? styles.errorBtn : ''}`}
-                            onClick={() => handleSubmit(scheduleEnabled ? 'scheduled' : 'published')}
+                            onClick={() => handleSubmit(postMode === 'library' ? 'draft' : (scheduleEnabled ? 'scheduled' : 'published'))}
                             disabled={!!disabledReason}
                             type="button"
                             title={disabledReason}
@@ -762,12 +762,17 @@ export default function PostComposer() {
                             {isSubmitting ? (
                                 <>
                                     <span className={styles.spinner} />
-                                    <span>Publishing...</span>
+                                    <span>{postMode === 'library' ? 'Adding...' : 'Publishing...'}</span>
                                 </>
                             ) : hasAnyError() ? (
                                 <>
                                     <span className={styles.btnIcon}>⚠️</span>
                                     <span>Fix Errors</span>
+                                </>
+                            ) : postMode === 'library' ? (
+                                <>
+                                    <span className={styles.btnIcon}>📚</span>
+                                    <span>Add to Library</span>
                                 </>
                             ) : scheduleEnabled ? (
                                 <>

@@ -207,8 +207,14 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     const handleDelete = async () => {
         if (!post || !confirm('Are you sure you want to delete this post?')) return;
         try {
+            const libraryId = post.libraryId;
             await deletePost(post.id);
-            router.push('/');
+            // Redirect back to library if post was in one, otherwise go to home
+            if (libraryId) {
+                router.push(`/libraries/${libraryId}`);
+            } else {
+                router.push('/');
+            }
         } catch (err) {
             console.error('Failed to delete post:', err);
             setError(err instanceof Error ? err.message : 'Failed to delete post');
