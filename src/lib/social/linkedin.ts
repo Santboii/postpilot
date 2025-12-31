@@ -22,7 +22,7 @@ export function getLinkedInAuthUrl(redirectUri: string, state: string): string {
         client_id: CLIENT_ID,
         redirect_uri: redirectUri,
         state: state,
-        scope: 'openid profile w_member_social email w_organization_social r_organization_social',
+        scope: 'openid profile w_member_social email w_organization_social r_organization_social rw_organization_admin',
     });
 
     return `${LINKEDIN_AUTH_URL}?${params.toString()}`;

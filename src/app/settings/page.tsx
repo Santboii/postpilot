@@ -146,6 +146,49 @@ export default function SettingsPage() {
     const linkedinPlatform: PlatformId = 'linkedin';
     const comingSoonPlatforms: PlatformId[] = ['threads'];
 
+    // LinkedIn Page Selection State
+    const [showLinkedInModal, setShowLinkedInModal] = useState(false);
+    const [linkedInAccounts, setLinkedInAccounts] = useState<any[]>([]);
+    const [loadingAccounts, setLoadingAccounts] = useState(false);
+
+    const handleManageLinkedIn = async () => {
+        setShowLinkedInModal(true);
+        setLoadingAccounts(true);
+        try {
+            const res = await fetch('/api/linkedin/pages');
+            const data = await res.json();
+            if (data.accounts) {
+                setLinkedInAccounts(data.accounts);
+            }
+        } catch (err) {
+            console.error(err);
+            setMessage({ type: 'error', text: 'Failed to load LinkedIn pages' });
+        } finally {
+            setLoadingAccounts(false);
+        }
+    };
+
+    const handleSelectLinkedInAccount = async (account: any) => {
+        try {
+            const res = await fetch('/api/linkedin/select-page', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    accountId: account.id,
+                    accountName: account.name
+                })
+            });
+
+            if (!res.ok) throw new Error('Failed to update selection');
+
+            setShowLinkedInModal(false);
+            setMessage({ type: 'success', text: `Switched posting to ${account.name}` });
+            invalidateConnections();
+        } catch (err) {
+            setMessage({ type: 'error', text: 'Failed to save selection' });
+        }
+    };
+
     return (
         <div className={styles.settingsContainer}>
             <h1 className={styles.pageTitle}>Settings</h1>
@@ -157,9 +200,49 @@ export default function SettingsPage() {
                 </div>
             )}
 
+            {/* LinkedIn Page Selector Modal */}
+            {showLinkedInModal && (
+                <div className={styles.modalOverlay} onClick={() => setShowLinkedInModal(false)}>
+                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+                        <h2>Select Posting Identity</h2>
+                        <p>Choose who you want to post as on LinkedIn:</p>
+
+                        {loadingAccounts ? (
+                            <div className={styles.spinner}>Loading accounts...</div>
+                        ) : (
+                            <div className={styles.accountList}>
+                                {linkedInAccounts.map(account => (
+                                    <button
+                                        key={account.id}
+                                        className={`${styles.accountOption} ${account.selected ? styles.selected : ''}`}
+                                        onClick={() => handleSelectLinkedInAccount(account)}
+                                    >
+                                        <div className={styles.accountIcon}>
+                                            {account.image ? (
+                                                <img src={account.image} alt="" />
+                                            ) : (
+                                                <span>{account.type === 'organization' ? '🏢' : '👤'}</span>
+                                            )}
+                                        </div>
+                                        <div className={styles.accountDetails}>
+                                            <strong>{account.name}</strong>
+                                            <span>{account.type === 'organization' ? 'Company Page' : 'Personal Profile'}</span>
+                                        </div>
+                                        {account.selected && <span className={styles.check}>✓</span>}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        <button className={styles.closeBtn} onClick={() => setShowLinkedInModal(false)}>
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>
-
                     <span>AI & Content</span>
                 </h2>
 
@@ -185,7 +268,6 @@ export default function SettingsPage() {
 
             <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>
-
                     <span>Connected Platforms</span>
                 </h2>
 
@@ -298,15 +380,27 @@ export default function SettingsPage() {
                 <div className={styles.platformGroup}>
                     <div className={styles.groupHeader}>
                         <span>In LinkedIn</span>
-                        <button
-                            className="btn btn-primary"
-                            onClick={handleConnectLinkedIn}
-                            type="button"
-                        >
-                            {getConnection(linkedinPlatform)
-                                ? '🔄 Reconnect'
-                                : '🔗 Connect LinkedIn'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            {getConnection(linkedinPlatform) && (
+                                <button
+                                    className="btn"
+                                    onClick={handleManageLinkedIn}
+                                    style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-color)' }}
+                                    type="button"
+                                >
+                                    ⚙️ Manage
+                                </button>
+                            )}
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleConnectLinkedIn}
+                                type="button"
+                            >
+                                {getConnection(linkedinPlatform)
+                                    ? '🔄 Reconnect'
+                                    : '🔗 Connect LinkedIn'}
+                            </button>
+                        </div>
                     </div>
 
                     <div className={styles.platformGrid}>
@@ -325,7 +419,7 @@ export default function SettingsPage() {
                                             <div className={styles.platformName}>{platform.name}</div>
                                             <div className={styles.platformStatus}>
                                                 {connection
-                                                    ? `✓ Connected as ${connection.platform_username || 'Business Page'}`
+                                                    ? `✓ Connected as ${connection.platform_username || 'LinkdIn User'}`
                                                     : 'Not connected'}
                                             </div>
                                         </div>
@@ -377,7 +471,6 @@ export default function SettingsPage() {
 
             <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>
-
                     <span>Appearance</span>
                 </h2>
 
