@@ -75,11 +75,18 @@ export async function GET(request: NextRequest) {
         console.log('Tokens exchanged successfully (DPoP Bound)');
 
         // 3. Get user info (Handle)
-        // We fetch public profile unauthenticated because the OAuth token is PDS-scoped
-        // and 'app.bsky.actor.getProfile' (AppView) rejects it with "meant for PDS access only".
-        const profileRes = await fetch(
-            `https://bsky.social/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(tokens.did)}`,
-            { method: 'GET' }
+        // We use 'com.atproto.repo.describeRepo' because it's a PDS-native method
+        // that accepts the PDS-scoped OAuth token. 'getProfile' is an AppView method
+        // which often fails with token scope errors.
+        const profileRes = await dpopFetch(
+            `https://bsky.social/xrpc/com.atproto.repo.describeRepo?repo=${encodeURIComponent(tokens.did)}`,
+            'GET',
+            dpopKey.privateKey,
+            dpopKey.publicKey,
+            null,
+            {
+                'Authorization': `DPoP ${tokens.accessToken}`
+            }
         );
 
         if (!profileRes.ok) {
