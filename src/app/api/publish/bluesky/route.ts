@@ -9,6 +9,7 @@ import { postBlueskyRecord, refreshAccessToken } from '@/lib/social/bluesky';
  * Body: { postId: string } or { content: string, media?: { url: string, alt?: string }[] }
  */
 export async function POST(request: NextRequest) {
+    console.log('--- Bluesky Publish Request Started ---');
     try {
         // Authenticate user
         const supabase = await createClient();
@@ -55,8 +56,11 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (connError || !connection) {
+            console.error('Bluesky Publish: No connection found for user', user.id);
             return NextResponse.json({ error: 'Bluesky account not connected' }, { status: 400 });
         }
+
+        console.log('Bluesky Publish: Connection found for', connection.platform_username);
 
         let accessToken = connection.access_token;
         const did = connection.platform_user_id;
@@ -77,6 +81,9 @@ export async function POST(request: NextRequest) {
                 privateKey,
                 publicKey
             };
+            console.log('Bluesky Publish: DPoP keys retrieved successfully');
+        } else {
+            console.warn('Bluesky Publish: No DPoP keys found in specific connection credentials');
         }
 
         // Check Token Expiry (Safety margin of 5 mins)
@@ -139,7 +146,9 @@ export async function POST(request: NextRequest) {
         }
 
         // Post to Bluesky
+        console.log('Bluesky Publish: Calling postBlueskyRecord...');
         const result = await postBlueskyRecord(accessToken, did, postContent, imageBuffers, dpopKey);
+        console.log('Bluesky Publish: Success!', result);
 
         return NextResponse.json({
             success: true,
