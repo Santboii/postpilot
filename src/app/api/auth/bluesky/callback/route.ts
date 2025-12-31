@@ -74,17 +74,12 @@ export async function GET(request: NextRequest) {
         const tokens = await exchangeCodeForTokens(code, codeVerifier, redirectUri, dpopKey);
         console.log('Tokens exchanged successfully (DPoP Bound)');
 
-        // 3. Get user info (Handle) using DPoP-signed request
-        // Standard AtpAgent doesn't support our manual DPoP easily, so we fetch directly.
-        const profileRes = await dpopFetch(
+        // 3. Get user info (Handle)
+        // We fetch public profile unauthenticated because the OAuth token is PDS-scoped
+        // and 'app.bsky.actor.getProfile' (AppView) rejects it with "meant for PDS access only".
+        const profileRes = await fetch(
             `https://bsky.social/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(tokens.did)}`,
-            'GET',
-            dpopKey.privateKey,
-            dpopKey.publicKey,
-            null,
-            {
-                'Authorization': `DPoP ${tokens.accessToken}`
-            }
+            { method: 'GET' }
         );
 
         if (!profileRes.ok) {
