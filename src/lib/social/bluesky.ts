@@ -60,18 +60,27 @@ export async function createDpopProof(
     method: string,
     privateKey: any,
     publicKey: any,
-    nonce?: string
+    nonce?: string,
+    accessToken?: string
 ): Promise<string> {
     const jwk = await jose.exportJWK(publicKey);
 
     // DPoP spec: htu must be the HTTP URI without query or fragment components
     const htu = url.split('?')[0].split('#')[0];
 
-    return new jose.SignJWT({
+    const payload: jose.JWTPayload = {
         htm: method,
         htu: htu,
         nonce: nonce,
-    })
+    };
+
+    if (accessToken) {
+        // 'ath' claim: SHA-256 hash of the access token
+        const hash = crypto.createHash('sha256').update(accessToken).digest('base64url');
+        payload.ath = hash;
+    }
+
+    return new jose.SignJWT(payload)
         .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk: jwk })
         .setIssuedAt()
         .setJti(crypto.randomUUID())
@@ -100,7 +109,14 @@ export async function dpopFetch(
     extraHeaders: Record<string, string> = {}
 ): Promise<Response> {
     const makeRequest = async (nonce?: string) => {
-        const proof = await createDpopProof(url, method, privateKey, publicKey, nonce);
+        // Extract Access Token from Authorization header if present
+        let accessToken: string | undefined;
+        const authHeader = extraHeaders['Authorization'] || extraHeaders['authorization'];
+        if (authHeader && (authHeader.startsWith('DPoP ') || authHeader.startsWith('Bearer '))) {
+            accessToken = authHeader.split(' ')[1];
+        }
+
+        const proof = await createDpopProof(url, method, privateKey, publicKey, nonce, accessToken);
         const headers: Record<string, string> = {
             ...extraHeaders,
             'DPoP': proof,
