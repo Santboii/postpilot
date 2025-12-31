@@ -17,6 +17,6 @@ export async function GET() {
         response_types: ['code'],
         token_endpoint_auth_method: 'none', // Public client (no secret required)
         application_type: 'web',
-        dpop_bound_access_tokens: false,
+        dpop_bound_access_tokens: true,
     });
 }

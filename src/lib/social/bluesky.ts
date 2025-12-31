@@ -1,5 +1,6 @@
 import { AtpAgent } from '@atproto/api';
 import crypto from 'crypto';
+import * as jose from 'jose';
 import sharp from 'sharp';
 // We need to use the OAuthClient to generate DPoP proofs correctly, 
 // OR simpler: manually generate the JWT if we want to avoid heavy deps,
@@ -39,6 +40,90 @@ export interface BlueskyTokens {
     expiresIn: number;
     scope: string;
     did: string;
+    dpopKey?: any; // JWK
+}
+
+export interface DpopKeyPair {
+    privateKey: any;
+    publicKey: any;
+}
+
+// Generate DPoP Key Pair (ES256)
+export async function generateDpopKeyPair(): Promise<DpopKeyPair> {
+    const { privateKey, publicKey } = await jose.generateKeyPair('ES256', { extractable: true });
+    return { privateKey, publicKey };
+}
+
+// Create DPoP Proof
+export async function createDpopProof(
+    url: string,
+    method: string,
+    privateKey: any,
+    publicKey: any,
+    nonce?: string
+): Promise<string> {
+    const jwk = await jose.exportJWK(publicKey);
+
+    return new jose.SignJWT({
+        htm: method,
+        htu: url,
+        nonce: nonce,
+    })
+        .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk: jwk })
+        .setIssuedAt()
+        .setJti(crypto.randomUUID())
+        .sign(privateKey);
+}
+
+// Export/Import Helpers
+export async function exportToJSON(key: any): Promise<any> {
+    return jose.exportJWK(key);
+}
+
+export async function importFromJSON(jwk: any): Promise<any> {
+    return jose.importJWK(jwk, 'ES256');
+}
+
+// ============================================
+// DPoP Fetch Helper (Nonce Handling)
+// ============================================
+
+export async function dpopFetch(
+    url: string,
+    method: string,
+    privateKey: any,
+    publicKey: any,
+    body: any,
+    extraHeaders: Record<string, string> = {}
+): Promise<Response> {
+    const makeRequest = async (nonce?: string) => {
+        const proof = await createDpopProof(url, method, privateKey, publicKey, nonce);
+        return fetch(url, {
+            method,
+            headers: {
+                ...extraHeaders,
+                'DPoP': proof,
+            },
+            body: body,
+        });
+    };
+
+    // 1. Try without nonce (or cached nonce if we implemented cache)
+    let response = await makeRequest();
+
+    // 2. If 401 and requests nonce, retry
+    if (response.status === 401) {
+        const authHeader = response.headers.get('www-authenticate');
+        const nonceHeader = response.headers.get('dpop-nonce');
+
+        // The server might send the nonce in 'DPoP-Nonce' header even on error
+        if (nonceHeader) {
+            console.log('Retrying DPoP request with new nonce');
+            response = await makeRequest(nonceHeader);
+        }
+    }
+
+    return response;
 }
 
 // ============================================
@@ -84,7 +169,8 @@ export function getBlueskyAuthUrl(
 export async function exchangeCodeForTokens(
     code: string,
     codeVerifier: string,
-    redirectUri: string
+    redirectUri: string,
+    dpopKey?: DpopKeyPair
 ): Promise<BlueskyTokens> {
     if (!CLIENT_ID) throw new Error('Missing BLUESKY_CLIENT_ID');
 
@@ -107,13 +193,33 @@ export async function exchangeCodeForTokens(
         bodyParams.client_secret = process.env.BLUESKY_CLIENT_SECRET;
     }
 
-    const response = await fetch(BSKY_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams(bodyParams),
-    });
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+    };
+
+    let response: Response;
+
+    if (dpopKey) {
+        const proof = await createDpopProof(BSKY_TOKEN_URL, 'POST', dpopKey.privateKey, dpopKey.publicKey);
+        headers['DPoP'] = proof;
+    }
+
+    if (dpopKey) {
+        response = await dpopFetch(
+            BSKY_TOKEN_URL,
+            'POST',
+            dpopKey.privateKey,
+            dpopKey.publicKey,
+            new URLSearchParams(bodyParams),
+            headers
+        );
+    } else {
+        response = await fetch(BSKY_TOKEN_URL, {
+            method: 'POST',
+            headers: headers,
+            body: new URLSearchParams(bodyParams),
+        });
+    }
 
     if (!response.ok) {
         const text = await response.text();
@@ -128,6 +234,7 @@ export async function exchangeCodeForTokens(
         expiresIn: data.expires_in,
         scope: data.scope,
         did: data.sub, // 'sub' in ID Token or response usually contains the DID
+        dpopKey: dpopKey ? await exportToJSON(dpopKey.privateKey) : undefined,
     };
 }
 
@@ -225,40 +332,56 @@ export async function postBlueskyRecord(
     accessToken: string,
     did: string,
     text: string,
-    images: { buffer: Buffer, alt?: string }[] = []
+    images: { buffer: Buffer, alt?: string }[] = [],
+    dpopKey?: DpopKeyPair
 ) {
-    // We use the Agent from @atproto/api for convenience in making XRPC calls.
-    // We can just set the session directly.
-    const agent = new AtpAgent({ service: 'https://bsky.social' });
-
-    // Resume session
-    await agent.resumeSession({
-        accessJwt: accessToken,
-        did: did,
-        handle: 'placeholder',
-        email: 'placeholder',
-        refreshJwt: 'placeholder',
-        active: true
-    });
-
     // 1. Upload Images
     const uploadedImages = [];
     for (const img of images) {
         const { buffer, mimeType } = await processImageForBluesky(img.buffer);
 
-        const response = await agent.uploadBlob(buffer, { encoding: mimeType });
-        if (!response.success) {
-            throw new Error('Failed to upload blob to Bluesky');
+        // Upload Blob
+        // Note: Blob upload might not require DPoP? Spec says "all authorized requests".
+        // Better to sign it.
+        let uploadRes: Response;
+
+        if (dpopKey) {
+            uploadRes = await dpopFetch(
+                'https://bsky.social/xrpc/com.atproto.repo.uploadBlob',
+                'POST',
+                dpopKey.privateKey,
+                dpopKey.publicKey,
+                buffer,
+                {
+                    'Authorization': `DPoP ${accessToken}`,
+                    'Content-Type': mimeType,
+                }
+            );
+        } else {
+            uploadRes = await fetch('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': mimeType,
+                },
+                body: buffer as any
+            });
         }
 
+        if (!uploadRes.ok) {
+            const txt = await uploadRes.text();
+            throw new Error(`Failed to upload blob: ${txt}`);
+        }
+
+        const data = await uploadRes.json();
         uploadedImages.push({
             alt: img.alt || '',
-            image: response.data.blob,
-            aspectRatio: { width: 1000, height: 1000 } // Should ideally calculate real ratio
+            image: data.blob,
+            aspectRatio: { width: 1000, height: 1000 } // Should calculate if possible, defaulting for now
         });
     }
 
-    // 2. Create Post
+    // 2. Create Post Record
     const postRecord = {
         text: text,
         createdAt: new Date().toISOString(),
@@ -268,10 +391,46 @@ export async function postBlueskyRecord(
         } : undefined,
     };
 
-    const res = await agent.post(postRecord);
+    const recordBody = {
+        repo: did,
+        collection: 'app.bsky.feed.post',
+        record: postRecord,
+    };
+
+    let postRes: Response;
+
+    if (dpopKey) {
+        postRes = await dpopFetch(
+            'https://bsky.social/xrpc/com.atproto.repo.createRecord',
+            'POST',
+            dpopKey.privateKey,
+            dpopKey.publicKey,
+            JSON.stringify(recordBody),
+            {
+                'Authorization': `DPoP ${accessToken}`,
+                'Content-Type': 'application/json',
+            }
+        );
+    } else {
+        postRes = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(recordBody)
+        });
+    }
+
+    if (!postRes.ok) {
+        const txt = await postRes.text();
+        throw new Error(`Failed to create post: ${txt}`);
+    }
+
+    const res = await postRes.json();
     return {
         uri: res.uri,
         cid: res.cid,
-        id: res.uri.split('/').pop() // Extract ID from AT URI
+        id: res.uri.split('/').pop()
     };
 }

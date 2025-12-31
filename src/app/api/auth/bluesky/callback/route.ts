@@ -4,7 +4,10 @@ import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import {
     exchangeCodeForTokens,
-    getBlueskyProfile,
+    // getBlueskyProfile, // We'll fetch manually to support DPoP
+    generateDpopKeyPair,
+    exportToJSON,
+    dpopFetch,
 } from '@/lib/social/bluesky';
 
 /**
@@ -63,12 +66,34 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Exchange code for tokens
-        const tokens = await exchangeCodeForTokens(code, codeVerifier, redirectUri);
-        console.log('Tokens exchanged successfully');
+        // 1. Generate DPoP Key Pair for this new session
+        const dpopKey = await generateDpopKeyPair();
+        console.log('Generated DPoP Key Pair');
 
-        // Get user info (Handle, Avatar, etc.)
-        const profile = await getBlueskyProfile(tokens.accessToken, tokens.did);
+        // 2. Exchange code for tokens (Access Token will be DPoP-bound)
+        const tokens = await exchangeCodeForTokens(code, codeVerifier, redirectUri, dpopKey);
+        console.log('Tokens exchanged successfully (DPoP Bound)');
+
+        // 3. Get user info (Handle) using DPoP-signed request
+        // Standard AtpAgent doesn't support our manual DPoP easily, so we fetch directly.
+        const profileRes = await dpopFetch(
+            'https://bsky.social/xrpc/app.bsky.actor.getProfile',
+            'GET',
+            dpopKey.privateKey,
+            dpopKey.publicKey,
+            null,
+            {
+                'Authorization': `DPoP ${tokens.accessToken}`
+            }
+        );
+
+        if (!profileRes.ok) {
+            const txt = await profileRes.text();
+            console.error('Failed to fetch profile:', txt);
+            throw new Error('Failed to fetch Bluesky profile');
+        }
+
+        const profile = await profileRes.json();
         console.log('Profile fetched:', profile.handle);
 
         // Get authenticated Supabase user
@@ -84,7 +109,10 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Store connection in database (upsert to handle reconnection)
+        // 4. Store connection AND DPoP keys
+        const privateKeyJwk = await exportToJSON(dpopKey.privateKey);
+        const publicKeyJwk = await exportToJSON(dpopKey.publicKey);
+
         const { error: dbError } = await supabase
             .from('connected_accounts')
             .upsert(
@@ -97,6 +125,10 @@ export async function GET(request: NextRequest) {
                     platform_user_id: tokens.did,
                     platform_username: profile.handle,
                     connected_at: new Date().toISOString(),
+                    credentials: {
+                        dpop_private_key: privateKeyJwk,
+                        dpop_public_key: publicKeyJwk
+                    }
                 },
                 {
                     onConflict: 'user_id,platform',

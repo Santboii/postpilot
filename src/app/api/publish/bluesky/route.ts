@@ -61,6 +61,24 @@ export async function POST(request: NextRequest) {
         let accessToken = connection.access_token;
         const did = connection.platform_user_id;
 
+        // Retrieve DPoP keys if available
+        let dpopKey;
+        if (connection.credentials &&
+            (connection.credentials as any).dpop_private_key &&
+            (connection.credentials as any).dpop_public_key
+        ) {
+            const creds = connection.credentials as any;
+            // Import JWKs back to Keys to create the DpopKeyPair object
+            const { importFromJSON } = await import('@/lib/social/bluesky');
+            const privateKey = await importFromJSON(creds.dpop_private_key);
+            const publicKey = await importFromJSON(creds.dpop_public_key);
+
+            dpopKey = {
+                privateKey,
+                publicKey
+            };
+        }
+
         // Check Token Expiry (Safety margin of 5 mins)
         // Bluesky tokens often expire short term, so we check carefully.
         const expiresAt = connection.token_expires_at ? new Date(connection.token_expires_at) : null;
@@ -121,7 +139,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Post to Bluesky
-        const result = await postBlueskyRecord(accessToken, did, postContent, imageBuffers);
+        const result = await postBlueskyRecord(accessToken, did, postContent, imageBuffers, dpopKey);
 
         return NextResponse.json({
             success: true,
