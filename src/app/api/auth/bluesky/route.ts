@@ -19,8 +19,11 @@ export async function GET() {
         const codeChallenge = generateCodeChallenge(codeVerifier);
         const state = generateState();
 
-        // Build redirect URI
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        // Build redirect URI (normalize to remove trailing slash from env var)
+        let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
+        }
         const redirectUri = `${baseUrl}/api/auth/bluesky/callback`;
 
         // Store verifier and state in secure cookies (needed for callback)
@@ -44,6 +47,12 @@ export async function GET() {
 
         // Generate authorization URL and redirect
         const authUrl = getBlueskyAuthUrl(redirectUri, state, codeChallenge);
+
+        console.log('--- Bluesky Auth Debug ---');
+        console.log('Base URL:', baseUrl);
+        console.log('Redirect URI:', redirectUri);
+        console.log('Generated Auth URL:', authUrl);
+        console.log('--------------------------');
 
         return NextResponse.redirect(authUrl);
     } catch (error) {
