@@ -23,6 +23,7 @@ export default function PostComposer() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [connectedAccountsMap, setConnectedAccountsMap] = useState<Record<PlatformId, { username: string; handle: string }>>({} as any);
 
     // AI Composers State
     const [showAIPanel, setShowAIPanel] = useState(false);
@@ -123,25 +124,40 @@ export default function PostComposer() {
             const supabase = getSupabase();
             const { data } = await supabase
                 .from('connected_accounts')
-                .select('platform');
+                .select('platform, platform_username');
 
-            const connected = (data || []).map(d => d.platform as PlatformId);
-            setConnectedPlatformIds(connected);
+            if (data) {
+                const connectedIds: PlatformId[] = [];
+                const accountMap: Record<PlatformId, { username: string; handle: string }> = {} as any;
 
-            // Auto-select all connected platforms by default
-            const initialSelection = [...connected];
+                data.forEach((account: any) => {
+                    const pid = account.platform as PlatformId;
+                    connectedIds.push(pid);
 
-            // If URL param specified a platform, ensure it's selected (if connected)
-            const paramPlatform = searchParams.get('platform') as PlatformId | null;
-            if (paramPlatform && connected.includes(paramPlatform)) {
-                // Nothing special needed as we select all, but we could focus it
-            }
+                    const name = account.platform_username || 'User';
+                    const handle = name.includes(' ')
+                        ? `@${name.toLowerCase().replace(/\s+/g, '')}`
+                        : (name.startsWith('@') ? name : `@${name}`);
 
-            setSelectedPlatforms(initialSelection);
+                    accountMap[pid] = {
+                        username: name,
+                        handle: handle
+                    };
+                });
 
-            // If only one platform, set it as active tab instead of 'shared'
-            if (initialSelection.length === 1) {
-                setActiveTab(initialSelection[0]);
+                setConnectedPlatformIds(connectedIds);
+                setConnectedAccountsMap(accountMap);
+
+                // Auto-select all connected platforms by default
+                const initialSelection = [...connectedIds];
+                setSelectedPlatforms(initialSelection);
+
+                // If only one platform, set it as active tab instead of 'shared'
+                if (initialSelection.length === 1) {
+                    setActiveTab(initialSelection[0]);
+                }
+            } else {
+                setConnectedPlatformIds([]);
             }
 
             setIsLoading(false);
@@ -810,6 +826,19 @@ export default function PostComposer() {
                         const remaining = limit ? limit - content.length : null;
                         const charStatus = getCharStatus(content, platformId);
                         const isCustom = hasCustomContent(platformId);
+                        const username = connectedAccountsMap[platformId]?.username || 'Your Name';
+                        const handle = connectedAccountsMap[platformId]?.handle || (username.includes(' ') ? `@${username.toLowerCase().replace(/\s+/g, '')}` : `@${username}`);
+
+                        // Helper to get platform-specific avatar class
+                        const getAvatarClass = (pid: string) => {
+                            switch (pid) {
+                                case 'twitter': return styles.previewAvatarTwitter;
+                                case 'facebook': return styles.previewAvatarFacebook;
+                                case 'linkedin': return styles.previewAvatarLinkedin;
+                                case 'instagram': return styles.previewAvatarInstagram;
+                                default: return '';
+                            }
+                        };
 
                         return (
                             <div
@@ -819,10 +848,13 @@ export default function PostComposer() {
                             >
                                 <div className={styles.previewPlatformHeader}>
                                     <div className={styles.previewUser}>
-                                        <div className={styles.previewAvatar}></div>
+                                        <div className={`${styles.previewAvatar} ${getAvatarClass(platformId)}`}>
+                                            {/* Placeholder Avatar - could fetch real one later */}
+                                            {username.charAt(0).toUpperCase()}
+                                        </div>
                                         <div>
-                                            <div className={styles.previewName}>Your Name</div>
-                                            <div className={styles.previewHandle}>@username</div>
+                                            <div className={styles.previewName}>{username}</div>
+                                            <div className={styles.previewHandle}>{handle}</div>
                                         </div>
                                     </div>
                                     <div className={styles.platformBadgeGroup}>
