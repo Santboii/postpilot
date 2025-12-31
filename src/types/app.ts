@@ -1,5 +1,5 @@
 // Platform types
-export type PlatformId = 'twitter' | 'instagram' | 'linkedin' | 'facebook' | 'threads';
+export type PlatformId = 'twitter' | 'instagram' | 'linkedin' | 'facebook' | 'threads' | 'bluesky';
 
 export interface Platform {
     id: PlatformId;
@@ -59,6 +59,7 @@ export interface Suggestion {
     variants: PlatformVariant[];
     status: SuggestionStatus;
     createdAt: string;
+    updatedAt?: string;
 }
 
 // Platform configs
@@ -115,6 +116,17 @@ export const PLATFORMS: Platform[] = [
         maxMedia: 10,
         supportsImages: true,
         supportsVideo: true,
+        connected: false,
+    },
+    {
+        id: 'bluesky',
+        name: 'Bluesky',
+        icon: '🦋',
+        color: '#0085ff',
+        maxLength: 300,
+        maxMedia: 4,
+        supportsImages: true,
+        supportsVideo: false, // Video not supported in MVP
         connected: false,
     },
 ];

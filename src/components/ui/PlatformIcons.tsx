@@ -81,6 +81,20 @@ export function ThreadsIcon({ size = 20, className }: IconProps) {
     );
 }
 
+export function BlueskyIcon({ size = 20, className }: IconProps) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className={className}
+        >
+            <path d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.039.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.58 11.569-6.124 11.882-6.533.058.044.114.088.169.135.055-.047.111-.091.169-.135.313.409 6.869 12.113 11.882 6.533 4.557-5.073 1.082-6.498-2.83-7.078-.139-.016-.277-.034-.415-.056.14.017.279.036.415.056 2.67.296 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.479 0-.689-.139-1.86-.902-2.203-.659-.299-1.664-.621-4.3 1.24C16.046 4.748 13.087 8.686 12 10.8z" />
+        </svg>
+    );
+}
+
 // Helper to get icon component by platform ID
 export function getPlatformIcon(platformId: string, size = 20): React.ReactNode {
     switch (platformId) {
@@ -94,6 +108,8 @@ export function getPlatformIcon(platformId: string, size = 20): React.ReactNode 
             return <LinkedInIcon size={size} />;
         case 'threads':
             return <ThreadsIcon size={size} />;
+        case 'bluesky':
+            return <BlueskyIcon size={size} />;
         default:
             return null;
     }

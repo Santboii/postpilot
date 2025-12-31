@@ -31,6 +31,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
         linkedin: '',
         facebook: '',
         threads: '',
+        bluesky: '',
     });
     const [activeTab, setActiveTab] = useState<ContentMode>('shared');
     const [error, setError] = useState<string | null>(null);

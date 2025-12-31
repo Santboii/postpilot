@@ -92,6 +92,7 @@ function dbToPost(row: DbPost, platforms: DbPostPlatform[]): Post {
         linkedin: '',
         facebook: '',
         threads: '',
+        bluesky: '',
     };
     platforms.forEach(p => {
         if (p.custom_content) {

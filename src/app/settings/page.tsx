@@ -440,6 +440,58 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
+                {/* Bluesky Platform */}
+                <div className={styles.platformGroup}>
+                    <div className={styles.groupHeader}>
+                        <span>🦋 Bluesky</span>
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => window.location.href = '/api/auth/bluesky'}
+                            type="button"
+                        >
+                            {getConnection('bluesky')
+                                ? '🔄 Reconnect'
+                                : '🔗 Connect Bluesky'}
+                        </button>
+                    </div>
+
+                    <div className={styles.platformGrid}>
+                        {(() => {
+                            const platform = PLATFORMS.find(p => p.id === 'bluesky');
+                            const connection = getConnection('bluesky');
+                            if (!platform) return null;
+
+                            return (
+                                <div className={styles.platformRow}>
+                                    <div className={styles.platformInfo}>
+                                        <div className={styles.platformIcon} style={{ color: platform.color }}>
+                                            {getPlatformIcon('bluesky', 22)}
+                                        </div>
+                                        <div>
+                                            <div className={styles.platformName}>{platform.name}</div>
+                                            <div className={styles.platformStatus}>
+                                                {connection
+                                                    ? `✓ Connected as @${connection.platform_username}`
+                                                    : 'Not connected'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {connection && (
+                                        <button
+                                            className={styles.disconnectBtn}
+                                            onClick={() => handleDisconnect('bluesky')}
+                                            type="button"
+                                        >
+                                            Disconnect
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+
                 {/* Other Platforms (Coming Soon) */}
                 <div className={styles.platformGroup}>
                     <div className={styles.groupHeader}>

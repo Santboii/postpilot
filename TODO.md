@@ -3,7 +3,7 @@
 ## 🚀 Immediate Next Steps (Core Integrations)
 - [ ] **Instagram API Application**: Finalize app settings in Meta Developer Portal (Review Permissions: `instagram_basic`, `instagram_content_publish`).
 - [ ] **Threads Integration**: Research API availability (currently in beta/limited access). Apply for access if available.
-- [ ] **Bluesky Integration**: Implement AT Protocol integration for posting.
+- [x] **Bluesky Integration**: Implement AT Protocol integration for posting.
 - [ ] **Mastodon Integration**: Implement ActivityPub/Mastodon API posting.
 - [ ] **Tumblr Integration**: Add Tumblr API support (text + image posts).
 
@@ -30,3 +30,4 @@
 - [ ] **Analytics Dashboard**: Aggregate metrics (likes, views) from all platforms.
 - [ ] **Team Collaboration**: Allow multiple users to manage one workspace.
 - [ ] **Browser Extension**: Quick share from any page.
+- [ ] **Brand DNA Improvements**: Improve brand DNA generation and integration

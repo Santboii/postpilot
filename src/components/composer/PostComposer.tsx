@@ -42,7 +42,11 @@ export default function PostComposer() {
         linkedin: '',
         facebook: '',
         threads: '',
+        bluesky: '',
     });
+
+    // Per-platform image overrides (undefined means inherit from shared)
+    const [platformImages, setPlatformImages] = useState<Partial<Record<PlatformId, File[]>>>({});
 
     // Which content mode we're editing
     const [activeTab, setActiveTab] = useState<ContentMode>('shared');
@@ -226,7 +230,42 @@ export default function PostComposer() {
         }
     };
 
+    const areImageSetsEqual = (a: File[], b: File[]) => {
+        if (a.length !== b.length) return false;
+        return a.every((file, index) => {
+            const other = b[index];
+            return file.name === other.name && file.size === other.size && file.lastModified === other.lastModified;
+        });
+    };
 
+    // Images Helper: Get current images based on tab
+    const getCurrentImages = (): File[] => {
+        if (activeTab === 'shared') return selectedImages;
+        return platformImages[activeTab] ?? selectedImages;
+    };
+
+    // Images Handler
+    const handleImagesChange = (files: File[]) => {
+        if (activeTab === 'shared') {
+            setSelectedImages(files);
+        } else {
+            setPlatformImages(prev => ({
+                ...prev,
+                [activeTab]: files
+            }));
+        }
+    };
+
+    // Promote custom platform images to shared
+    const handleMakeShared = () => {
+        if (activeTab === 'shared') return;
+        const currentImages = platformImages[activeTab];
+        if (currentImages) {
+            setSelectedImages(currentImages);
+            // Revert back to shared state (inheriting the new shared images)
+            clearPlatformContent(activeTab);
+        }
+    };
 
     // Platform Optimization Handler
     const handleOptimize = async () => {
@@ -266,12 +305,15 @@ export default function PostComposer() {
         }
     };
 
-
-
     // Check if a platform has custom content (different from shared)
     const hasCustomContent = (platformId: PlatformId): boolean => {
-        const custom = platformContent[platformId];
-        return custom.length > 0 && custom !== sharedContent;
+        const customText = platformContent[platformId] || '';
+        const customImages = platformImages[platformId];
+        // It has custom content if text is different OR if specific images are set
+        // Note: platformImages being undefined means "inherit".
+        const hasCustomText = customText.length > 0 && customText !== sharedContent;
+        const hasCustomImages = customImages !== undefined;
+        return hasCustomText || hasCustomImages;
     };
 
     // Copy shared content to platform-specific
@@ -282,6 +324,14 @@ export default function PostComposer() {
                 [platformId]: sharedContent,
             }));
         }
+        // Initialize images if not already set
+        setPlatformImages(prev => {
+            if (prev[platformId] !== undefined) return prev;
+            return {
+                ...prev,
+                [platformId]: [...selectedImages]
+            };
+        });
         setActiveTab(platformId);
     };
 
@@ -290,8 +340,12 @@ export default function PostComposer() {
         setPlatformContent(prev => ({
             ...prev,
             [platformId]: '',
-            [platformId]: '',
         }));
+        setPlatformImages(prev => {
+            const next = { ...prev };
+            delete next[platformId];
+            return next;
+        });
         if (activeTab === platformId) {
             setActiveTab('shared');
         }
@@ -397,6 +451,7 @@ export default function PostComposer() {
     const disabledReason = getDisabledReason();
 
     const uploadImages = async (): Promise<MediaAttachment[]> => {
+
         if (selectedImages.length === 0) return [];
 
         const supabase = getSupabase();
@@ -647,14 +702,32 @@ export default function PostComposer() {
                         </div>
                     )}
 
+
+
                     {/* Image Upload Dropzone */}
                     <MediaUploader
-                        files={selectedImages}
-                        onFilesChange={setSelectedImages}
+                        files={getCurrentImages()}
+                        onFilesChange={handleImagesChange}
                         maxMedia={getMaxMedia()}
                         disabled={isSubmitting}
                         sharedContent={sharedContent}
                     />
+
+                    {/* Make Shared Button - Only show if platform images differ from shared */}
+                    {activeTab !== 'shared' && platformImages[activeTab] && !areImageSetsEqual(selectedImages, platformImages[activeTab]!) && (
+                        <div className="flex justify-end mt-2">
+                            <button
+                                className={styles.secondaryActionBtn}
+                                onClick={handleMakeShared}
+                                type="button"
+                                title="Promote these images to be the Shared default for all platforms"
+                                style={{ fontSize: '0.85rem', padding: '4px 8px' }}
+                            >
+                                <span>↗️</span>
+                                Make Shared Images
+                            </button>
+                        </div>
+                    )}
 
                     {/* X Media Warning - shown only when images are uploaded and X is selected */}
                     {selectedPlatforms.includes('twitter') && selectedImages.length > 0 && (
