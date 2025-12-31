@@ -12,6 +12,8 @@ import {
  * Initiates Bluesky OAuth 2.0 authorization flow with PKCE
  * GET /api/auth/bluesky
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     try {
         // Generate PKCE values
