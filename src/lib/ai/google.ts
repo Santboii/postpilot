@@ -31,8 +31,9 @@ export class GoogleGeminiService implements AIProvider {
     constructor(apiKey: string) {
         this.genAI = new GoogleGenerativeAI(apiKey);
 
-        // Using flash models explicitly with latest alias to avoid 404s
-        this.textModel = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        // Upgrading to Gemini 3 Flash (Standard 2026 Model)
+        // Gemini 3 Flash is optimized for high-volume, multimodal tasks.
+        this.textModel = this.genAI.getGenerativeModel({ model: 'gemini-3-flash' });
     }
 
     async generatePost(params: PostGenerationParams): Promise<GeneratedPost> {
@@ -81,9 +82,8 @@ Do not wrap in markdown code blocks. Just valid JSON.
 
     async generateImage(prompt: string, aspectRatio: string = '1:1'): Promise<string> {
         try {
-            // Use the newly confirmed Gemini 2.5 Flash Image model ("Nano Banana")
-            // This natively generates images without needing Vertex AI
-            const imageModel = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            // Use Gemini 3 Flash for image generation (Multimodal)
+            const imageModel = this.genAI.getGenerativeModel({ model: 'gemini-3-flash' });
 
             const result = await imageModel.generateContent(prompt);
             const response = await result.response;
