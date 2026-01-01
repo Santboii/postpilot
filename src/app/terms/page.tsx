@@ -85,7 +85,7 @@ export default function TermsPage() {
                 <h2>9. Contact</h2>
                 <p>
                     For questions about these Terms of Use, please contact us at{' '}
-                    <a href="mailto:support@socialsgenie.com">support@socialsgenie.com</a>
+                    <a href="mailto:contact@socialsgenie.com">contact@socialsgenie.com</a>
                 </p>
             </section>
         </div>
