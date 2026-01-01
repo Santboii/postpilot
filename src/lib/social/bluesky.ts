@@ -2,6 +2,8 @@ import { AtpAgent } from '@atproto/api';
 import crypto from 'crypto';
 import * as jose from 'jose';
 import sharp from 'sharp';
+import { SocialLogger } from './logger';
+
 // We need to use the OAuthClient to generate DPoP proofs correctly, 
 // OR simpler: manually generate the JWT if we want to avoid heavy deps,
 // but @atproto/oauth-client-node is the official way.
@@ -108,6 +110,8 @@ export async function dpopFetch(
     body: any,
     extraHeaders: Record<string, string> = {}
 ): Promise<Response> {
+    const requestId = crypto.randomUUID();
+    const context = { platform: 'bluesky' as const, action: 'dpop_fetch', requestId };
     const makeRequest = async (nonce?: string) => {
         // Extract Access Token from Authorization header if present
         let accessToken: string | undefined;
@@ -122,7 +126,9 @@ export async function dpopFetch(
             'DPoP': proof,
         };
 
-        if (nonce) console.log('dpopFetch: Sending request with nonce:', nonce);
+        if (nonce) {
+            SocialLogger.info(context, 'Sending request with nonce retry', { nonce });
+        }
 
         return fetch(url, {
             method,
@@ -138,17 +144,20 @@ export async function dpopFetch(
     if (response.status === 401 || response.status === 400) {
         const nonceHeader = response.headers.get('dpop-nonce') || response.headers.get('DPoP-Nonce');
 
-        console.log(`dpopFetch: Request failed with ${response.status}. Nonce header: ${nonceHeader ? 'Found' : 'Missing'}`);
+        SocialLogger.warn(context, `Request failed with ${response.status}`, {
+            nonceHeaderFound: !!nonceHeader,
+            status: response.status
+        });
 
         if (nonceHeader) {
-            console.log('dpopFetch: Retrying with new nonce:', nonceHeader);
+            SocialLogger.info(context, 'Retrying with new nonce');
             response = await makeRequest(nonceHeader);
         } else {
             // Try to peek error body
             try {
                 const clone = response.clone();
                 const errJson = await clone.json();
-                console.error('dpopFetch: Error body (no nonce header):', errJson);
+                SocialLogger.error(context, 'Error body (no nonce header)', errJson);
             } catch (e) { /* ignore */ }
         }
     }

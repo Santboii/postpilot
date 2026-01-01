@@ -7,6 +7,14 @@ import LeadCaptureForm from '@/components/landing/LeadCaptureForm';
 import Image from 'next/image';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
+import {
+    XIcon,
+    InstagramIcon,
+    FacebookIcon,
+    LinkedInIcon,
+    ThreadsIcon,
+    BlueskyIcon
+} from '@/components/ui/PlatformIcons';
 
 export default function LandingPage() {
     return (
@@ -51,7 +59,7 @@ export default function LandingPage() {
                         </div>
                         <div className={styles.statDivider}></div>
                         <div className={styles.stat}>
-                            <span className={styles.statNumber}>5</span>
+                            <span className={styles.statNumber}>6</span>
                             <span className={styles.statLabel}>Platforms</span>
                         </div>
                         <div className={styles.statDivider}></div>
@@ -59,6 +67,15 @@ export default function LandingPage() {
                             <span className={styles.statNumber}>99%</span>
                             <span className={styles.statLabel}>Time Saved</span>
                         </div>
+                    </div>
+
+                    <div className={styles.platformIcons}>
+                        <BlueskyIcon size={24} />
+                        <XIcon size={24} />
+                        <InstagramIcon size={24} />
+                        <LinkedInIcon size={24} />
+                        <FacebookIcon size={24} />
+                        <ThreadsIcon size={24} />
                     </div>
                 </div>
             </section>

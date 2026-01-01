@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { postBlueskyRecord, refreshAccessToken } from '@/lib/social/bluesky';
+import { SocialLogger } from '@/lib/social/logger';
+import crypto from 'crypto';
 
 /**
  * Publish a post to Bluesky
@@ -9,13 +11,17 @@ import { postBlueskyRecord, refreshAccessToken } from '@/lib/social/bluesky';
  * Body: { postId: string } or { content: string, media?: { url: string, alt?: string }[] }
  */
 export async function POST(request: NextRequest) {
-    console.log('--- Bluesky Publish Request Started ---');
+    const requestId = crypto.randomUUID();
+    const context = { platform: 'bluesky' as const, action: 'publish_api', requestId };
+    SocialLogger.info(context, 'Publish request started');
+
     try {
         // Authenticate user
         const supabase = await createClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
+            SocialLogger.warn(context, 'Unauthorized request');
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -36,6 +42,7 @@ export async function POST(request: NextRequest) {
                 .single();
 
             if (postError || !post) {
+                SocialLogger.warn(context, 'Post not found', { postId });
                 return NextResponse.json({ error: 'Post not found' }, { status: 404 });
             }
             postContent = post.content;
@@ -44,6 +51,7 @@ export async function POST(request: NextRequest) {
             postContent = content;
             postMedia = media;
         } else {
+            SocialLogger.warn(context, 'Missing content');
             return NextResponse.json({ error: 'Missing postId or content' }, { status: 400 });
         }
 
@@ -56,11 +64,11 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (connError || !connection) {
-            console.error('Bluesky Publish: No connection found for user', user.id);
+            SocialLogger.error(context, 'No connection found', { userId: user.id });
             return NextResponse.json({ error: 'Bluesky account not connected' }, { status: 400 });
         }
 
-        console.log('Bluesky Publish: Connection found for', connection.platform_username);
+        SocialLogger.info(context, 'Connection found', { username: connection.platform_username });
 
         let accessToken = connection.access_token;
         const did = connection.platform_user_id;
@@ -81,9 +89,9 @@ export async function POST(request: NextRequest) {
                 privateKey,
                 publicKey
             };
-            console.log('Bluesky Publish: DPoP keys retrieved successfully');
+            SocialLogger.info(context, 'DPoP keys retrieved');
         } else {
-            console.warn('Bluesky Publish: No DPoP keys found in specific connection credentials');
+            SocialLogger.warn(context, 'No DPoP keys use, falling back to Bearer (public client mode?)');
         }
 
         // Check Token Expiry (Safety margin of 5 mins)
@@ -94,6 +102,7 @@ export async function POST(request: NextRequest) {
         if (isExpired) {
             try {
                 if (!connection.refresh_token) {
+                    SocialLogger.warn(context, 'Token expired, no refresh token');
                     return NextResponse.json(
                         { error: 'Bluesky token expired and no refresh token available. Reconnect.' },
                         { status: 401 }
@@ -113,8 +122,10 @@ export async function POST(request: NextRequest) {
                     })
                     .eq('user_id', user.id)
                     .eq('platform', 'bluesky');
+
+                SocialLogger.info(context, 'Token refreshed');
             } catch (refreshError) {
-                console.error('Failed to refresh Bluesky token:', refreshError);
+                SocialLogger.error(context, 'Failed to refresh token', refreshError);
                 return NextResponse.json(
                     { error: 'Bluesky session expired. Please reconnect your account.' },
                     { status: 401 }
@@ -139,16 +150,16 @@ export async function POST(request: NextRequest) {
                         alt: item.alt
                     });
                 } catch (err) {
-                    console.error('Failed to process image for Bluesky:', err);
+                    SocialLogger.error(context, 'Image fetch failed', err);
                     return NextResponse.json({ error: 'Failed to process image attachment' }, { status: 500 });
                 }
             }
         }
 
         // Post to Bluesky
-        console.log('Bluesky Publish: Calling postBlueskyRecord...');
+        SocialLogger.info(context, 'Calling postBlueskyRecord...');
         const result = await postBlueskyRecord(accessToken, did, postContent, imageBuffers, dpopKey);
-        console.log('Bluesky Publish: Success!', result);
+        SocialLogger.info(context, 'Post success', { uri: result.uri });
 
         return NextResponse.json({
             success: true,
@@ -157,7 +168,7 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error) {
-        console.error('Bluesky publish error:', error);
+        SocialLogger.error(context, 'Publish Error', error);
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Failed to publish to Bluesky' },
             { status: 500 }

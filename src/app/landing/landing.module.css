@@ -267,6 +267,26 @@
     background: var(--border-light);
 }
 
+.platformIcons {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-4);
+    margin-top: var(--space-6);
+    color: var(--text-secondary);
+    width: 100%;
+}
+
+.platformIcons svg {
+    opacity: 0.7;
+    transition: all var(--transition-fast);
+}
+
+.platformIcons svg:hover {
+    opacity: 1;
+    color: var(--accent-purple);
+    transform: translateY(-2px);
+}
+
 /* Features Section */
 .features {
     padding: var(--space-16) var(--space-6);
