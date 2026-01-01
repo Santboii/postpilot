@@ -73,9 +73,15 @@ Do not wrap in markdown code blocks. Just valid JSON.
             // Clean up markdown if present
             const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
+            console.log('Gemini Raw Response:', cleanText);
+
             return JSON.parse(cleanText) as GeneratedPost;
         } catch (error) {
             console.error('Error generating post text:', error);
+            // Log the raw error details if available
+            if ((error as any).response) {
+                console.error('Gemini Error Response:', JSON.stringify((error as any).response, null, 2));
+            }
             throw new Error('Failed to generate post content');
         }
     }
