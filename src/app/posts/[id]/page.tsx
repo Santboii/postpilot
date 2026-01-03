@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { use } from 'react';
 import { PlatformId, PLATFORMS, getCharacterLimit, Post, MediaAttachment, generateId } from '@/types';
@@ -8,8 +8,12 @@ import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { getPost, updatePost, deletePost } from '@/lib/db';
 import { getSupabase } from '@/lib/supabase';
 import { useConnections } from '@/hooks/useQueries';
+import { getCharStatus, hasAnyCharError, getFirstPlatformError, getPlatformValidationError } from '@/hooks/usePlatformValidation';
 import styles from '@/components/composer/Composer.module.css';
 import MediaUploader from '@/components/composer/MediaUploader';
+import PlatformSelector from '@/components/composer/PlatformSelector';
+import PreviewCard from '@/components/composer/PreviewCard';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 type ContentMode = 'shared' | PlatformId;
 
@@ -29,15 +33,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformId[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [sharedContent, setSharedContent] = useState('');
-    const [platformContent, setPlatformContent] = useState<Record<PlatformId, string>>({
-        twitter: '',
-        instagram: '',
-        linkedin: '',
-        facebook: '',
-        threads: '',
-        bluesky: '',
-        pinterest: '',
-    });
+    const [platformContent, setPlatformContent] = useState<Partial<Record<PlatformId, string>>>({});
     const [activeTab, setActiveTab] = useState<ContentMode>('shared');
     const [error, setError] = useState<string | null>(null);
     const [allowedPlatforms, setAllowedPlatforms] = useState<PlatformId[] | null>(null);
@@ -45,6 +41,12 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     // Media State
     const [existingMedia, setExistingMedia] = useState<MediaAttachment[]>([]);
     const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+
+    // Preview section scroll tracking
+    const previewSectionRef = useRef<HTMLDivElement>(null);
+
+    const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
     useEffect(() => {
         async function loadPost() {
@@ -88,18 +90,35 @@ export default function EditPostPage({ params }: EditPostPageProps) {
 
         setSelectedPlatforms(prev => {
             const newPlatforms = prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id];
-            if (!newPlatforms.includes(id) && activeTab === id) setActiveTab('shared');
+            if (!newPlatforms.includes(id) && activeTab === id) {
+                handleTabSwitch('shared');
+            }
             return newPlatforms;
         });
     };
 
+    // Helper to switch tabs and cleanup empty custom states
+    const handleTabSwitch = (newTab: ContentMode) => {
+        if (activeTab !== 'shared' && activeTab !== newTab) {
+            const current = platformContent[activeTab];
+            if (current !== undefined && current.trim() === '') {
+                setPlatformContent(prev => {
+                    const next = { ...prev };
+                    delete next[activeTab as PlatformId];
+                    return next;
+                });
+            }
+        }
+        setActiveTab(newTab);
+    };
+
     const getContentForPlatform = (platformId: PlatformId): string => {
-        return platformContent[platformId] || sharedContent;
+        return platformContent[platformId] !== undefined ? platformContent[platformId] : sharedContent;
     };
 
     const getCurrentContent = (): string => {
         if (activeTab === 'shared') return sharedContent;
-        return platformContent[activeTab] || sharedContent;
+        return platformContent[activeTab] !== undefined ? platformContent[activeTab] : sharedContent;
     };
 
     const handleContentChange = (value: string) => {
@@ -111,33 +130,65 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     };
 
     const hasCustomContent = (platformId: PlatformId): boolean => {
-        return platformContent[platformId].length > 0;
+        return platformContent[platformId] !== undefined && platformContent[platformId] !== sharedContent;
     };
 
+    // Switch to platform tab (content initialization happens lazily on edit)
     const initializePlatformContent = (platformId: PlatformId) => {
-        if (!platformContent[platformId]) {
-            setPlatformContent(prev => ({ ...prev, [platformId]: sharedContent }));
-        }
-        setActiveTab(platformId);
+        handleTabSwitch(platformId);
     };
 
     const clearPlatformContent = (platformId: PlatformId) => {
-        setPlatformContent(prev => ({ ...prev, [platformId]: '' }));
-        if (activeTab === platformId) setActiveTab('shared');
+        setPlatformContent(prev => {
+            const next = { ...prev };
+            delete next[platformId];
+            return next;
+        });
+        if (activeTab === platformId) {
+            handleTabSwitch('shared');
+        }
     };
 
-    const getCharStatus = (content: string, platformId: PlatformId): 'ok' | 'warning' | 'error' => {
-        const limit = getCharacterLimit(platformId);
-        if (!limit) return 'ok';
-        const remaining = limit - content.length;
-        if (remaining < 0) return 'error';
-        if (remaining < 20) return 'warning';
-        return 'ok';
-    };
-
+    // Use imported validation from shared hook
     const hasAnyError = (): boolean => {
-        return selectedPlatforms.some(id => getCharStatus(getContentForPlatform(id), id) === 'error');
+        return hasAnyCharError(selectedPlatforms, getContentForPlatform);
     };
+
+    // Calculate total media count for validation
+    const totalMediaCount = existingMedia.length + mediaFiles.length;
+
+    const getValidationErrors = (): string[] => {
+        const errors: string[] = [];
+
+        if (selectedPlatforms.length === 0) {
+            errors.push('Select at least one platform');
+            return errors;
+        }
+        if (!sharedContent.trim()) {
+            errors.push('Content is required');
+        }
+
+        // Per-platform checks
+        selectedPlatforms.forEach(platformId => {
+            // Char limit
+            const content = getContentForPlatform(platformId);
+            if (getCharStatus(content, platformId) === 'error') {
+                const limit = getCharacterLimit(platformId);
+                const platformName = PLATFORMS.find(p => p.id === platformId)?.name || platformId;
+                errors.push(`${platformName} exceeds ${limit} chars`);
+            }
+
+            // Image requirements - Edit page typically uses shared media pool for now
+            const imageError = getPlatformValidationError(platformId, totalMediaCount);
+            if (imageError) {
+                errors.push(imageError);
+            }
+        });
+
+        return errors;
+    };
+
+    const validationErrors = getValidationErrors();
 
     const uploadImages = async (): Promise<MediaAttachment[]> => {
         if (mediaFiles.length === 0) return [];
@@ -189,7 +240,8 @@ export default function EditPostPage({ params }: EditPostPageProps) {
             const activePlatformContent = {} as Record<PlatformId, string>;
             selectedPlatforms.forEach(p => {
                 const content = platformContent[p];
-                if (content && content.trim() !== '') {
+                // Include if explicitly defined (even if empty string)
+                if (content !== undefined) {
                     activePlatformContent[p] = content;
                 }
             });
@@ -211,7 +263,12 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     };
 
     const handleDelete = async () => {
-        if (!post || !confirm('Are you sure you want to delete this post?')) return;
+        if (!post) return;
+        setShowDeleteConfirmation(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!post) return;
         try {
             const libraryId = post.libraryId;
             await deletePost(post.id);
@@ -224,6 +281,8 @@ export default function EditPostPage({ params }: EditPostPageProps) {
         } catch (err) {
             console.error('Failed to delete post:', err);
             setError(err instanceof Error ? err.message : 'Failed to delete post');
+        } finally {
+            setShowDeleteConfirmation(false);
         }
     };
 
@@ -273,30 +332,35 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                     )}
                 </div>
 
-                <div className={styles.platformToggle}>
-                    {PLATFORMS.map(platform => {
-                        // If published, only show platforms that were actually used
-                        if (post.status === 'published' && !selectedPlatforms.includes(platform.id)) {
-                            return null;
-                        }
-
-                        const isDisabled = allowedPlatforms && !allowedPlatforms.includes(platform.id);
-                        return (
-                            <button
-                                key={platform.id}
-                                className={`${styles.platformBtn} ${selectedPlatforms.includes(platform.id) ? styles.active : ''} ${isDisabled ? styles.disabled : ''}`}
-                                onClick={() => togglePlatform(platform.id)}
-                                type="button"
-                                disabled={!!isDisabled || post.status === 'published'}
-                                title={isDisabled ? 'Not available for this library' : ''}
-                                style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                            >
-                                <span>{getPlatformIcon(platform.id, 16)}</span>
-                                <span>{platform.name}</span>
-                            </button>
-                        );
-                    })}
-                </div>
+                {/* Platform Selection - show different for published posts */}
+                {post.status === 'published' ? (
+                    <div className={styles.platformToggle}>
+                        {selectedPlatforms.map(platformId => {
+                            const platform = PLATFORMS.find(p => p.id === platformId)!;
+                            return (
+                                <button
+                                    key={platformId}
+                                    className={`${styles.platformBtn} ${styles.active}`}
+                                    type="button"
+                                    disabled
+                                    style={{ cursor: 'default' }}
+                                >
+                                    <span style={{ color: platform.color }}>{getPlatformIcon(platformId, 16)}</span>
+                                    <span>{platform.name}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <PlatformSelector
+                        platforms={PLATFORMS}
+                        selected={selectedPlatforms}
+                        onToggle={togglePlatform}
+                        getCharStatusForPlatform={(id) => getCharStatus(getContentForPlatform(id), id)}
+                        allowedPlatforms={allowedPlatforms}
+                        showAddMore={false}
+                    />
+                )}
 
                 <div className={styles.editorCard}>
                     {post.status !== 'published' && (
@@ -319,13 +383,24 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                                     <p className={styles.tabDescription}>
                                         ✏️ Customizing for <strong>{PLATFORMS.find(p => p.id === activeTab)?.name}</strong> only
                                     </p>
-                                    <button
-                                        className={styles.revertBtn}
-                                        onClick={() => clearPlatformContent(activeTab as PlatformId)}
-                                        type="button"
-                                    >
-                                        ↩ Use shared
-                                    </button>
+                                    <div className={styles.tabActions}>
+                                        <button
+                                            className={styles.secondaryActionBtn}
+                                            onClick={() => handleTabSwitch('shared')}
+                                            type="button"
+                                            title="Return to editing shared content (keeps your changes here)"
+                                        >
+                                            Edit Shared
+                                        </button>
+                                        <button
+                                            className={styles.revertBtn}
+                                            onClick={() => clearPlatformContent(activeTab as PlatformId)}
+                                            type="button"
+                                            title="Discard custom changes and use shared content"
+                                        >
+                                            ↩ Use shared
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -400,29 +475,52 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                             </div>
                         ) : (
                             <>
-                                <button
-                                    className="btn btn-secondary"
-                                    onClick={() => handleSave('draft')}
-                                    disabled={isSubmitting || !sharedContent.trim()}
-                                    type="button"
-                                >
-                                    💾 Save Draft
-                                </button>
-                                <button
-                                    className="btn btn-primary btn-lg"
-                                    onClick={() => handleSave('scheduled')}
-                                    disabled={isSubmitting || !sharedContent.trim() || selectedPlatforms.length === 0 || hasAnyError()}
-                                    type="button"
-                                >
-                                    {isSubmitting ? '⏳ Saving...' : hasAnyError() ? '⚠️ Fix Errors' : '✓ Save Changes'}
-                                </button>
+                                <div className="flex flex-col items-end gap-1">
+                                    <div className="flex gap-3">
+                                        <button
+                                            className="btn btn-secondary"
+                                            onClick={() => handleSave('draft')}
+                                            disabled={isSubmitting || !sharedContent.trim()}
+                                            type="button"
+                                        >
+                                            💾 Save Draft
+                                        </button>
+                                        <button
+                                            className="btn btn-primary btn-lg"
+                                            onClick={() => handleSave('scheduled')}
+                                            disabled={isSubmitting || validationErrors.length > 0}
+                                            type="button"
+                                            title={validationErrors.length > 0 ? 'Please fix validation errors' : undefined}
+                                        >
+                                            {isSubmitting ? '⏳ Saving...' : '✓ Save Changes'}
+                                        </button>
+                                    </div>
+                                    {validationErrors.length > 0 && (
+                                        <div className={styles.validationSubtext}>
+                                            {validationErrors.map((error, index) => (
+                                                <div key={index} className={styles.validationItem}>
+                                                    <span>⚠️</span>
+                                                    <span>{error}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </>
                         )}
                     </div>
                 </div>
             </div>
 
-            <div className={styles.previewSection}>
+            <div
+                className={styles.previewSection}
+                ref={previewSectionRef}
+                onScroll={(e) => {
+                    const target = e.target as HTMLDivElement;
+                    const scrolledEnough = target.scrollTop > 100;
+                    setIsScrolledToBottom(scrolledEnough);
+                }}
+            >
                 <div className={styles.previewHeader}>
                     <span>👁️</span>
                     <span>Live Previews</span>
@@ -434,86 +532,74 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                         <p>Select platforms to see previews</p>
                     </div>
                 ) : (
-                    selectedPlatforms.map(platformId => {
-                        const platform = PLATFORMS.find(p => p.id === platformId)!;
-                        const content = getContentForPlatform(platformId);
-                        const limit = getCharacterLimit(platformId);
-                        const remaining = limit ? limit - content.length : null;
-                        const charStatus = getCharStatus(content, platformId);
-                        const isCustom = hasCustomContent(platformId);
+                    <>
+                        {/* Sort platforms: validation errors first */}
+                        {[...selectedPlatforms]
+                            .sort((a, b) => {
+                                const aHasError = !!getPlatformValidationError(a, totalMediaCount) || getCharStatus(getContentForPlatform(a), a) === 'error';
+                                const bHasError = !!getPlatformValidationError(b, totalMediaCount) || getCharStatus(getContentForPlatform(b), b) === 'error';
+                                if (aHasError && !bHasError) return -1;
+                                if (!aHasError && bHasError) return 1;
+                                return 0;
+                            })
+                            .map((platformId, index, sortedPlatforms) => {
+                                const content = getContentForPlatform(platformId);
+                                const isCustom = hasCustomContent(platformId);
 
-                        // Get connected account info
-                        const account = connectedAccounts.find(a => a.platform === platformId);
-                        const username = account?.platform_username || 'Your Name';
-                        const handle = username.includes(' ')
-                            ? `@${username.toLowerCase().replace(/\s+/g, '')}`
-                            : (username.startsWith('@') ? username : `@${username}`);
+                                // Get connected account info
+                                const account = connectedAccounts.find(a => a.platform === platformId);
+                                const username = account?.platform_username || 'Your Name';
+                                const handle = username.includes(' ')
+                                    ? `@${username.toLowerCase().replace(/\s+/g, '')}`
+                                    : (username.startsWith('@') ? username : `@${username}`);
 
-                        // Platform specific styling
-                        const getAvatarClass = (pid: string) => {
-                            switch (pid) {
-                                case 'twitter': return styles.previewAvatarTwitter;
-                                case 'facebook': return styles.previewAvatarFacebook;
-                                case 'linkedin': return styles.previewAvatarLinkedin;
-                                case 'instagram': return styles.previewAvatarInstagram;
-                                default: return '';
-                            }
-                        };
+                                // Create combined image preview URLs
+                                const existingUrls = existingMedia.map(m => m.url);
+                                const newFileUrls = mediaFiles.map(f => URL.createObjectURL(f));
+                                const allImagePreviews = [...existingUrls, ...newFileUrls];
 
-                        return (
-                            <div
-                                key={platformId}
-                                className={`${styles.previewCard} ${activeTab === platformId ? styles.previewCardActive : ''} ${charStatus === 'error' ? styles.previewError : ''}`}
-                                onClick={() => initializePlatformContent(platformId)}
+                                return (
+                                    <React.Fragment key={platformId}>
+                                        <PreviewCard
+                                            platformId={platformId}
+                                            content={content}
+                                            username={username}
+                                            handle={handle}
+                                            isActive={activeTab === platformId}
+                                            isCustom={isCustom}
+                                            imageCount={totalMediaCount}
+                                            imagePreviews={allImagePreviews}
+                                            onClick={() => initializePlatformContent(platformId)}
+                                        />
+                                    </React.Fragment>
+                                );
+                            })}
+                        {/* Sticky scroll indicator at bottom of preview section */}
+                        {selectedPlatforms.length > 2 && !isScrolledToBottom && (
+                            <button
+                                className={styles.scrollHintSticky}
+                                onClick={() => {
+                                    previewSectionRef.current?.scrollBy({ top: 300, behavior: 'smooth' });
+                                }}
+                                type="button"
                             >
-                                <div className={styles.previewPlatformHeader}>
-                                    <div className={styles.previewUser}>
-                                        <div className={`${styles.previewAvatar} ${getAvatarClass(platformId)}`}>
-                                            {username.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div>
-                                            <div className={styles.previewName}>{username}</div>
-                                            <div className={styles.previewHandle}>{handle}</div>
-                                        </div>
-                                    </div>
-                                    <div className={styles.platformBadgeGroup}>
-                                        {isCustom && <span className={styles.customLabel}>Custom</span>}
-                                        <div className={styles.platformBadge} style={{ color: platform.color }}>
-                                            <span>{getPlatformIcon(platform.id, 16)}</span>
-                                            <span>{platform.name}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className={styles.previewContent}>
-                                    {content || <span className={styles.placeholder}>Your post will appear here...</span>}
-
-                                    {/* Show media preview for this platform */}
-                                    {(existingMedia.length > 0 || mediaFiles.length > 0) && (
-                                        <div className={styles.platformMediaPreview}>
-                                            {existingMedia.length > 0 && (
-                                                <img src={existingMedia[0].url} alt="Media" className={styles.previewImage} />
-                                            )}
-                                            {existingMedia.length === 0 && mediaFiles.length > 0 && (
-                                                <img src={URL.createObjectURL(mediaFiles[0])} alt="Media" className={styles.previewImage} />
-                                            )}
-                                            {(existingMedia.length + mediaFiles.length) > 1 && (
-                                                <div className={styles.moreMediaOverlay}>+{(existingMedia.length + mediaFiles.length) - 1}</div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {limit && (
-                                    <div className={`${styles.charRemaining} ${styles[charStatus]}`}>
-                                        {remaining! >= 0 ? `${remaining} characters left` : `${Math.abs(remaining!)} characters over limit!`}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })
+                                <span>↓</span>
+                                <span>{selectedPlatforms.length - 1} more previews below</span>
+                            </button>
+                        )}
+                    </>
                 )}
             </div>
+            {/* Delete Confirmation Modal */}
+            <ConfirmModal
+                isOpen={showDeleteConfirmation}
+                title="Delete Post?"
+                message="Are you sure you want to delete this post? This action cannot be undone."
+                confirmText="Delete"
+                variant="danger"
+                onConfirm={confirmDelete}
+                onCancel={() => setShowDeleteConfirmation(false)}
+            />
         </div>
     );
 }

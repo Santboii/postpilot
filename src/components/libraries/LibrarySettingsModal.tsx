@@ -20,6 +20,7 @@ export interface LibraryAiSettings {
     custom_hashtags?: string;
     use_emojis?: boolean;
     generate_images?: boolean;
+    pinterest_board_id?: string;
 }
 
 interface LibrarySettingsModalProps {
@@ -48,12 +49,35 @@ export default function LibrarySettingsModal({
     const [isSaving, setIsSaving] = useState(false);
     const [isOptimizing, setIsOptimizing] = useState(false);
 
+    // Pinterest board state
+    const [pinterestBoards, setPinterestBoards] = useState<{ id: string; name: string }[]>([]);
+    const [loadingBoards, setLoadingBoards] = useState(false);
+
+    const fetchPinterestBoards = async () => {
+        setLoadingBoards(true);
+        try {
+            const res = await fetch('/api/pinterest/boards');
+            if (res.ok) {
+                const data = await res.json();
+                setPinterestBoards(data.boards || []);
+            }
+        } catch (error) {
+            console.error('Failed to fetch Pinterest boards:', error);
+        } finally {
+            setLoadingBoards(false);
+        }
+    };
+
     useEffect(() => {
         if (isOpen) {
             setSettings(initialSettings || {});
             setPlatforms(initialPlatforms || []);
             setName(initialName || '');
             setTopic(initialTopic || '');
+            // Fetch boards if Pinterest is in platforms
+            if (initialPlatforms?.includes('pinterest')) {
+                fetchPinterestBoards();
+            }
         }
     }, [isOpen, initialSettings, initialPlatforms, initialName, initialTopic]);
 
@@ -84,11 +108,16 @@ export default function LibrarySettingsModal({
     };
 
     const handlePlatformToggle = (platformId: PlatformId) => {
+        const isAdding = !platforms.includes(platformId);
         setPlatforms(prev =>
             prev.includes(platformId)
                 ? prev.filter(id => id !== platformId)
                 : [...prev, platformId]
         );
+        // Fetch boards when Pinterest is added
+        if (platformId === 'pinterest' && isAdding && pinterestBoards.length === 0) {
+            fetchPinterestBoards();
+        }
     };
 
     const handleSave = async () => {
@@ -197,6 +226,27 @@ export default function LibrarySettingsModal({
                         ))}
                     </div>
                 </div>
+
+                {/* Pinterest Board Selector */}
+                {platforms.includes('pinterest') && (
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>
+                            Pinterest Board
+                            <span className={styles.subLabel}>Where pins will be posted</span>
+                        </label>
+                        <select
+                            className={styles.select}
+                            value={settings.pinterest_board_id || ''}
+                            onChange={e => handleChange('pinterest_board_id', e.target.value)}
+                            disabled={loadingBoards}
+                        >
+                            <option value="">{loadingBoards ? 'Loading boards...' : 'Select a board'}</option>
+                            {pinterestBoards.map(board => (
+                                <option key={board.id} value={board.id}>{board.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
 
                 {/* Tone Section */}
                 <div className={styles.formGroup}>

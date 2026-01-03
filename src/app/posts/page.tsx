@@ -10,7 +10,7 @@ import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import PostPopover from '@/components/calendar/PostPopover';
 import styles from './page.module.css';
-import { Calendar as CalendarIcon, List as ListIcon, ChevronLeft, ChevronRight, LayoutGrid, CalendarDays, Rows, ChevronDown } from 'lucide-react';
+import { Calendar as CalendarIcon, List as ListIcon, ChevronLeft, ChevronRight, LayoutGrid, CalendarDays, Rows, ChevronDown, MoreVertical } from 'lucide-react';
 
 type FilterStatus = 'all' | PostStatus;
 type ViewType = 'list' | 'calendar';
@@ -80,6 +80,7 @@ function PostsPageContent() {
     const [selectedPost, setSelectedPost] = useState<Post | null>(null);
     const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
     const [platformDropdownOpen, setPlatformDropdownOpen] = useState(false); // Dropdown state
+    const [actionsDropdownOpen, setActionsDropdownOpen] = useState<string | null>(null); // Track which post's dropdown is open
 
     // Filter Logic
     const filteredPosts = useMemo(() => {
@@ -397,7 +398,10 @@ function PostsPageContent() {
                             }[post.status];
 
                             const dateInfo = (() => {
-                                const formatDate = (d: string) => new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+                                const formatDate = (d: string) => {
+                                    const date = new Date(d);
+                                    return date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' });
+                                };
                                 if (post.status === 'published' && post.publishedAt) return { label: 'Published', date: formatDate(post.publishedAt), icon: '✅', className: styles.datePublished };
                                 if (post.status === 'scheduled' && post.scheduledAt) return { label: 'Scheduled', date: formatDate(post.scheduledAt), icon: '📅', className: styles.dateScheduled };
                                 return { label: 'Created', date: formatDate(post.createdAt), icon: '🕐', className: styles.dateCreated };
@@ -429,12 +433,34 @@ function PostsPageContent() {
                                                     </span>
                                                 ))}
                                             </div>
-                                            <div className={styles.actions}>
-                                                <button className={styles.actionBtn} onClick={() => handleEdit(post.id)}>✏️ Edit</button>
-                                                {(post.status === 'scheduled' || post.status === 'draft') && (
-                                                    <button className={`${styles.actionBtn} ${styles.publishBtn}`} onClick={() => openPublishModal(post)}>🚀 Publish</button>
+                                            <div className={styles.actionsWrapper}>
+                                                <button
+                                                    className={styles.ellipsisBtn}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActionsDropdownOpen(actionsDropdownOpen === post.id ? null : post.id);
+                                                    }}
+                                                    onBlur={() => setTimeout(() => setActionsDropdownOpen(null), 150)}
+                                                >
+                                                    <MoreVertical size={16} />
+                                                </button>
+                                                {actionsDropdownOpen === post.id && (
+                                                    <div className={styles.actionsDropdown}>
+                                                        {post.status !== 'published' && (
+                                                            <button className={styles.actionBtn} onClick={() => { setActionsDropdownOpen(null); handleEdit(post.id); }}>
+                                                                ✏️ Edit
+                                                            </button>
+                                                        )}
+                                                        {(post.status === 'scheduled' || post.status === 'draft') && (
+                                                            <button className={`${styles.actionBtn} ${styles.publishBtn}`} onClick={() => { setActionsDropdownOpen(null); openPublishModal(post); }}>
+                                                                🚀 Publish
+                                                            </button>
+                                                        )}
+                                                        <button className={`${styles.actionBtn} ${styles.deleteBtn}`} onClick={() => { setActionsDropdownOpen(null); openDeleteModal(post); }}>
+                                                            🗑️ Delete
+                                                        </button>
+                                                    </div>
                                                 )}
-                                                <button className={`${styles.actionBtn} ${styles.deleteBtn}`} onClick={() => openDeleteModal(post)}>🗑️</button>
                                             </div>
                                         </div>
                                     </div>
@@ -487,42 +513,47 @@ function PostsPageContent() {
                                 <div className={styles.weekGrid}>
                                     {WEEKDAYS.map((_, dayIndex) => (
                                         <div key={dayIndex} className={styles.weekDayColumn}>
-                                            {getDayPosts(getWeekDays(currentDate)[dayIndex]).map(post => {
-                                                const d = new Date(post.scheduledAt || post.publishedAt || post.createdAt);
-                                                const top = (d.getHours() * 60) + d.getMinutes();
-                                                const platform = PLATFORMS.find(p => p.id === post.platforms[0]);
-                                                const hasMedia = post.media && post.media.length > 0;
-                                                return (
-                                                    <div
-                                                        key={post.id}
-                                                        className={styles.weekPostItem}
-                                                        style={{ top: `${top}px`, borderLeftColor: platform?.color }}
-                                                        onClick={(e) => handlePostClick(post, e)}
-                                                    >
-                                                        {hasMedia && (
-                                                            <div className={styles.weekPostMedia}>
-                                                                <img src={post.media?.[0]?.thumbnail || post.media?.[0]?.url} alt="" />
-                                                            </div>
-                                                        )}
-                                                        <div className={styles.weekPostContent}>
-                                                            <div className={styles.weekPostHeader}>
-                                                                <span className={styles.weekPostTime}>{d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                                <div className={styles.weekPostIcons}>
-                                                                    {post.platforms.slice(0, 3).map(pId => {
-                                                                        const p = PLATFORMS.find(pl => pl.id === pId);
-                                                                        return (
-                                                                            <span key={pId} className={styles.miniPlatformIcon} style={{ color: p?.color }}>
-                                                                                {getPlatformIcon(pId, 10)}
-                                                                            </span>
-                                                                        );
-                                                                    })}
+                                            {getDayPosts(getWeekDays(currentDate)[dayIndex])
+                                                .sort((a, b) => {
+                                                    const aTime = new Date(a.scheduledAt || a.publishedAt || a.createdAt).getTime();
+                                                    const bTime = new Date(b.scheduledAt || b.publishedAt || b.createdAt).getTime();
+                                                    return aTime - bTime;
+                                                })
+                                                .map(post => {
+                                                    const d = new Date(post.scheduledAt || post.publishedAt || post.createdAt);
+                                                    const platform = PLATFORMS.find(p => p.id === post.platforms[0]);
+                                                    const hasMedia = post.media && post.media.length > 0;
+                                                    return (
+                                                        <div
+                                                            key={post.id}
+                                                            className={styles.weekPostItem}
+                                                            style={{ borderLeftColor: platform?.color }}
+                                                            onClick={(e) => handlePostClick(post, e)}
+                                                        >
+                                                            {hasMedia && (
+                                                                <div className={styles.weekPostMedia}>
+                                                                    <img src={post.media?.[0]?.thumbnail || post.media?.[0]?.url} alt="" />
                                                                 </div>
+                                                            )}
+                                                            <div className={styles.weekPostContent}>
+                                                                <div className={styles.weekPostHeader}>
+                                                                    <span className={styles.weekPostTime}>{d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                    <div className={styles.weekPostIcons}>
+                                                                        {post.platforms.slice(0, 3).map(pId => {
+                                                                            const p = PLATFORMS.find(pl => pl.id === pId);
+                                                                            return (
+                                                                                <span key={pId} className={styles.miniPlatformIcon} style={{ color: p?.color }}>
+                                                                                    {getPlatformIcon(pId, 10)}
+                                                                                </span>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                                <span className={styles.weekPostText}>{post.content}</span>
                                                             </div>
-                                                            <span className={styles.weekPostText}>{post.content}</span>
                                                         </div>
-                                                    </div>
-                                                );
-                                            })}
+                                                    );
+                                                })}
                                         </div>
                                     ))}
                                 </div>

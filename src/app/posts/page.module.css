@@ -452,8 +452,25 @@
 }
 
 .platforms {
+    display: grid;
+    grid-template-columns: repeat(5, 24px);
+    gap: var(--space-1);
+    flex: 1;
+    min-width: 0;
+}
+
+.platformsOverflow {
     display: flex;
-    gap: var(--space-2);
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    font-weight: 500;
 }
 
 .platformIcon {
@@ -473,40 +490,74 @@
     background: var(--bg-elevated);
 }
 
-.actions {
-    display: flex;
-    gap: var(--space-2);
+.actionsWrapper {
+    position: relative;
+    flex-shrink: 0;
+    margin-left: var(--space-3);
 }
 
-.actionBtn {
+.ellipsisBtn {
     display: flex;
     align-items: center;
-    gap: var(--space-1);
-    padding: var(--space-1) var(--space-3);
+    justify-content: center;
+    width: 32px;
+    height: 32px;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
     background: transparent;
     color: var(--text-secondary);
-    font-size: var(--text-xs);
     cursor: pointer;
     transition: all var(--transition-fast);
 }
 
-.actionBtn:hover {
+.ellipsisBtn:hover {
     background: var(--bg-tertiary);
     border-color: var(--border-light);
     color: var(--text-primary);
 }
 
+.actionsDropdown {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: var(--space-2);
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    z-index: 50;
+    overflow: hidden;
+    min-width: 140px;
+    animation: fadeIn 0.15s ease-out;
+}
+
+.actionBtn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-align: left;
+}
+
+.actionBtn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
 .publishBtn:hover {
     background: rgba(16, 185, 129, 0.1);
-    border-color: var(--accent-green);
     color: var(--accent-green);
 }
 
 .deleteBtn:hover {
     background: rgba(239, 68, 68, 0.1);
-    border-color: rgba(239, 68, 68, 0.3);
     color: var(--accent-red);
 }
 
@@ -920,18 +971,16 @@
 .weekGrid {
     flex: 1;
     display: flex;
-    position: relative;
 }
 
 .weekDayColumn {
     flex: 1;
     border-right: 1px solid var(--border-subtle);
-    position: relative;
-    /* Background grid lines */
-    background-image: linear-gradient(to bottom, var(--border-subtle) 1px, transparent 1px);
-    background-size: 100% 60px;
-    background-position: 0 -1px;
-    /* Align with time slots */
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2);
+    overflow-y: auto;
 }
 
 .weekDayColumn:last-child {
@@ -939,32 +988,26 @@
 }
 
 .weekPostItem {
-    position: absolute;
-    left: 4px;
-    right: 4px;
+    position: relative;
     background: var(--bg-elevated);
     border: 1px solid var(--border-subtle);
     border-left: 3px solid;
     border-radius: var(--radius-md);
-    padding: 4px;
+    padding: 6px;
     font-size: var(--text-xs);
     cursor: pointer;
     overflow: hidden;
     transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
     box-shadow: var(--shadow-sm);
-    z-index: 10;
     display: flex;
     flex-direction: row;
     gap: 4px;
+    flex-shrink: 0;
 }
 
 .weekPostItem:hover {
-    transform: scale(1.02);
-    z-index: 20;
+    transform: translateY(-2px);
     box-shadow: var(--shadow-md);
-    height: auto !important;
-    min-height: 50px;
-    max-height: none;
     background: var(--bg-card-hover);
 }
 

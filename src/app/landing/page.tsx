@@ -44,7 +44,9 @@ export default function LandingPage() {
                         Schedule, publish, and grow your audience across all social platforms with one powerful tool.
                     </p>
 
-                    <WaitlistForm />
+                    <div id="waitlist">
+                        <WaitlistForm />
+                    </div>
 
                     <div className={styles.heroCtas}>
                         <Link href="#features" className={styles.ctaSecondary}>

@@ -1,15 +1,20 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PlatformId, PLATFORMS, getCharacterLimit, Platform, MediaAttachment, generateId, ContentLibrary } from '@/types';
 import { createPost, publishPost } from '@/lib/db';
 import { getSupabase } from '@/lib/supabase';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { useInvalidatePosts, useLibraries, useConnections } from '@/hooks/useQueries';
+import { getCharStatus, hasAnyCharError, getFirstPlatformError, getPlatformValidationError } from '@/hooks/usePlatformValidation';
 import { Library, Calendar as CalendarIcon, Repeat } from 'lucide-react';
 import MediaUploader from './MediaUploader';
+import ConfirmModal from '../ui/ConfirmModal';
+
 import AITextGenerator from './AITextGenerator';
+import PlatformSelector from './PlatformSelector';
+import PreviewCard from './PreviewCard';
 import styles from './Composer.module.css';
 
 interface PinterestBoard {
@@ -43,15 +48,7 @@ export default function PostComposer() {
     const [sharedContent, setSharedContent] = useState('');
 
     // Per-platform content overrides
-    const [platformContent, setPlatformContent] = useState<Record<PlatformId, string>>({
-        twitter: '',
-        instagram: '',
-        linkedin: '',
-        facebook: '',
-        threads: '',
-        bluesky: '',
-        pinterest: '',
-    });
+    const [platformContent, setPlatformContent] = useState<Partial<Record<PlatformId, string>>>({});
 
     // Per-platform metadata (e.g. Pinterest Board ID)
     const [platformMetadata, setPlatformMetadata] = useState<Record<PlatformId, any>>({
@@ -96,6 +93,18 @@ export default function PostComposer() {
     const [selectedImages, setSelectedImages] = useState<File[]>([]);
     const [imagePreviews, setImagePreviews] = useState<string[]>([]);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+    // Preview section scroll tracking
+    const previewSectionRef = useRef<HTMLDivElement>(null);
+    const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
+
+    // Confirmation Modals
+    const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
+
+
+    // Confirmation Modals
+
+
 
     // Sync previews for Live Preview section
     useEffect(() => {
@@ -171,6 +180,7 @@ export default function PostComposer() {
             setConnectedPlatformIds(connectedIds);
             setConnectedAccountsMap(accountMap);
 
+
             // Auto-select all connected platforms by default ONLY on initial load
             // We use a ref or check if selection is empty to prevent overwriting user selection
             if (selectedPlatforms.length === 0 && connectedIds.length > 0) {
@@ -228,9 +238,9 @@ export default function PostComposer() {
             // If removing the active tab platform, switch to shared or first available
             if (!newPlatforms.includes(id) && activeTab === id) {
                 if (showSharedTab) {
-                    setActiveTab('shared');
+                    handleTabSwitch('shared');
                 } else if (newPlatforms.length > 0) {
-                    setActiveTab(newPlatforms[0]);
+                    handleTabSwitch(newPlatforms[0]);
                 }
             }
 
@@ -238,15 +248,34 @@ export default function PostComposer() {
         });
     };
 
+    // Helper to switch tabs and cleanup empty custom states
+    const handleTabSwitch = (newTab: ContentMode) => {
+        // If leaving a custom tab and it has empty content, revert it to shared (inherit)
+        // This prevents leaving "blank" custom overrides unintentionally
+        if (activeTab !== 'shared' && activeTab !== newTab) {
+            const current = platformContent[activeTab];
+            // Only clean up if it's explicitly set to empty string (and assume no custom images prevents cleanup?)
+            // User requested "found blank -> defaulted back".
+            if (current !== undefined && current.trim() === '') {
+                setPlatformContent(prev => {
+                    const next = { ...prev };
+                    delete next[activeTab as PlatformId];
+                    return next;
+                });
+            }
+        }
+        setActiveTab(newTab);
+    };
+
     // Get content for a specific platform (fallback to shared)
     const getContentForPlatform = (platformId: PlatformId): string => {
-        return platformContent[platformId] || sharedContent;
+        return platformContent[platformId] !== undefined ? platformContent[platformId] : sharedContent;
     };
 
     // Get the content being edited in the current tab
     const getCurrentContent = (): string => {
         if (activeTab === 'shared') return sharedContent;
-        return platformContent[activeTab] || sharedContent;
+        return platformContent[activeTab] !== undefined ? platformContent[activeTab] : sharedContent;
     };
 
     // Update content based on current tab
@@ -276,14 +305,24 @@ export default function PostComposer() {
     };
 
     // Images Helper: Get current images based on tab
+    // When only 1 platform is selected, return that platform's images
     const getCurrentImages = (): File[] => {
+        if (selectedPlatforms.length === 1) {
+            return platformImages[selectedPlatforms[0]] ?? selectedImages;
+        }
         if (activeTab === 'shared') return selectedImages;
         return platformImages[activeTab] ?? selectedImages;
     };
 
-    // Images Handler
+    // Images Handler - when only 1 platform is selected, treat it as platform-specific
     const handleImagesChange = (files: File[]) => {
-        if (activeTab === 'shared') {
+        // If only 1 platform is selected, always update that specific platform's images
+        if (selectedPlatforms.length === 1) {
+            setPlatformImages(prev => ({
+                ...prev,
+                [selectedPlatforms[0]]: files
+            }));
+        } else if (activeTab === 'shared') {
             setSelectedImages(files);
         } else {
             setPlatformImages(prev => ({
@@ -353,38 +392,25 @@ export default function PostComposer() {
         return hasCustomText || hasCustomImages;
     };
 
-    // Copy shared content to platform-specific
+    // Switch to platform tab (content initialization happens lazily on edit)
     const initializePlatformContent = (platformId: PlatformId) => {
-        if (!platformContent[platformId]) {
-            setPlatformContent(prev => ({
-                ...prev,
-                [platformId]: sharedContent,
-            }));
-        }
-        // Initialize images if not already set
-        setPlatformImages(prev => {
-            if (prev[platformId] !== undefined) return prev;
-            return {
-                ...prev,
-                [platformId]: [...selectedImages]
-            };
-        });
-        setActiveTab(platformId);
+        handleTabSwitch(platformId);
     };
 
     // Clear platform-specific content (revert to shared)
     const clearPlatformContent = (platformId: PlatformId) => {
-        setPlatformContent(prev => ({
-            ...prev,
-            [platformId]: '',
-        }));
+        setPlatformContent(prev => {
+            const next = { ...prev };
+            delete next[platformId];
+            return next;
+        });
         setPlatformImages(prev => {
             const next = { ...prev };
             delete next[platformId];
             return next;
         });
         if (activeTab === platformId) {
-            setActiveTab('shared');
+            handleTabSwitch('shared');
         }
     };
 
@@ -409,22 +435,9 @@ export default function PostComposer() {
         return null;
     };
 
-
-
-    const getCharStatus = (content: string, platformId: PlatformId): 'ok' | 'warning' | 'error' => {
-        const limit = getCharacterLimit(platformId);
-        if (!limit) return 'ok';
-        const remaining = limit - content.length;
-        if (remaining < 0) return 'error';
-        if (remaining < 20) return 'warning';
-        return 'ok';
-    };
-
+    // Use imported hasAnyCharError with local getContentForPlatform
     const hasAnyError = (): boolean => {
-        return selectedPlatforms.some(id => {
-            const content = getContentForPlatform(id);
-            return getCharStatus(content, id) === 'error';
-        });
+        return hasAnyCharError(selectedPlatforms, getContentForPlatform);
     };
 
     const getScheduledDateTime = (): string | undefined => {
@@ -473,47 +486,56 @@ export default function PostComposer() {
         return allCustomized;
     };
 
-    const hasPlatformSpecificError = (): string | null => {
-        if (selectedPlatforms.includes('pinterest')) {
-            const rules = PLATFORMS.find(p => p.id === 'pinterest');
-            // Check custom images first (if defined), otherwise fallback to shared
-            const customImages = platformImages['pinterest'];
-            const effectiveImages = customImages !== undefined ? customImages : selectedImages;
-
-            if (effectiveImages.length === 0) return 'Pinterest requires an image';
-        }
-        return null;
-    };
-
     const canSchedule = scheduleEnabled && scheduleDate && scheduleTime;
 
-    const getDisabledReason = (): string | undefined => {
-        if (isSubmitting) return 'Publishing in progress...';
-        if (isSubmitting) return 'Publishing in progress...';
-        if (selectedPlatforms.length === 0) return 'Select at least one platform';
+    const getValidationErrors = (): string[] => {
+        const errors: string[] = [];
 
-        if (!hasValidContent()) return 'Content is required';
+        if (isSubmitting) errors.push('Publishing in progress...');
+        if (selectedPlatforms.length === 0) {
+            errors.push('Select at least one platform');
+            return errors;
+        }
+
+        if (!hasValidContent()) {
+            errors.push('Content is required');
+        }
 
         // Media validation
         const mediaError = validateMediaCount(selectedImages.length);
-        if (mediaError) return mediaError;
+        if (mediaError) errors.push(mediaError);
 
-        if (hasAnyError()) return 'Fix character limit errors first';
+        // Per-platform checks
+        selectedPlatforms.forEach(platformId => {
+            // Char limit
+            const content = platformContent[platformId] !== undefined ? platformContent[platformId] : sharedContent;
+            if (getCharStatus(content, platformId) === 'error') {
+                const limit = getCharacterLimit(platformId);
+                const platformName = PLATFORMS.find(p => p.id === platformId)?.name || platformId;
+                errors.push(`${platformName} exceeds ${limit} chars`);
+            }
 
-        // Platform specific validation
-        const platformError = hasPlatformSpecificError();
-        if (platformError) return platformError;
+            // Image requirements
+            const customImages = platformImages[platformId];
+            const effectiveImages = customImages !== undefined ? customImages : selectedImages;
+
+            const imageError = getPlatformValidationError(platformId, effectiveImages.length);
+            if (imageError) {
+                errors.push(imageError);
+            }
+        });
 
         if (postMode === 'schedule') {
-            if (scheduleEnabled && !canSchedule) return 'Select date and time';
+            if (scheduleEnabled && !canSchedule) errors.push('Select date and time');
         } else {
-            if (!selectedLibraryId) return 'Select a library';
+            if (!selectedLibraryId) errors.push('Select a library');
         }
 
-        return undefined;
+        return errors;
     };
 
-    const disabledReason = getDisabledReason();
+    const validationErrors = getValidationErrors();
+    const isSaveDisabled = validationErrors.length > 0 || isSubmitting;
 
     const uploadImages = async (): Promise<MediaAttachment[]> => {
 
@@ -585,7 +607,7 @@ export default function PostComposer() {
                 platforms: selectedPlatforms,
                 status: initialStatus,
                 scheduledAt,
-                platformContent,
+                platformContent: platformContent as Record<PlatformId, string>,
                 platformMetadata,
                 media: uploadedMedia,
                 libraryId: postMode === 'library' ? selectedLibraryId : undefined,
@@ -613,47 +635,15 @@ export default function PostComposer() {
                     <h2>Create Post</h2>
                 </div>
 
-                {/* Platform Selection - Unified toggle with active/inactive states */}
-                {isLoading ? (
-                    <div className={styles.platformToggle}>
-                        {/* Render 5 skeleton buttons to reserve space */}
-                        {[1, 2, 3, 4, 5].map((i) => (
-                            <div key={i} className={styles.skeletonBtn} />
-                        ))}
-                    </div>
-                ) : connectedPlatforms.length === 0 ? (
-                    <div className={styles.noPlatforms}>
-                        <span>🔌</span>
-                        <p>No platforms connected yet.</p>
-                        <a href="/settings" className={styles.connectLink}>Connect a platform in Settings →</a>
-                    </div>
-                ) : (
-                    <div className={styles.platformToggle}>
-                        {connectedPlatforms.map(platform => {
-                            const isSelected = selectedPlatforms.includes(platform.id);
-                            const content = getContentForPlatform(platform.id);
-                            const status = getCharStatus(content, platform.id);
-
-                            return (
-                                <button
-                                    key={platform.id}
-                                    className={`${styles.platformBtn} ${isSelected ? styles.active : styles.inactive}`}
-                                    onClick={() => togglePlatform(platform.id)}
-                                    type="button"
-                                    title={isSelected ? 'Click to deselect' : 'Click to select'}
-                                >
-                                    <span style={{ color: isSelected ? platform.color : undefined }}>{getPlatformIcon(platform.id, 18)}</span>
-                                    <span>{platform.name}</span>
-                                    {status === 'error' && isSelected && <span className={styles.errorIndicator}>!</span>}
-                                </button>
-                            );
-                        })}
-                        <a href="/settings" className={styles.addMoreLink} title="Connect more platforms">
-                            <span>+</span>
-                            <span>Add More</span>
-                        </a>
-                    </div>
-                )}
+                {/* Platform Selection */}
+                <PlatformSelector
+                    platforms={connectedPlatforms}
+                    selected={selectedPlatforms}
+                    onToggle={togglePlatform}
+                    getCharStatusForPlatform={(id) => getCharStatus(getContentForPlatform(id), id)}
+                    isLoading={isLoading}
+                    showAddMore={true}
+                />
                 <div className={styles.editorCard}>
                     {/* Tab Info Header */}
                     <div className={styles.tabInfo}>
@@ -699,7 +689,7 @@ export default function PostComposer() {
                                             </button>
                                             <button
                                                 className={styles.secondaryActionBtn}
-                                                onClick={() => setActiveTab('shared')}
+                                                onClick={() => handleTabSwitch('shared')}
                                                 type="button"
                                                 title="Return to editing shared content (keeps your changes here)"
                                             >
@@ -947,6 +937,21 @@ export default function PostComposer() {
                     <div className={styles.actions}>
                         <button
                             className={styles.secondaryBtn}
+                            onClick={() => {
+                                const hasUnsavedWork = sharedContent.trim() || selectedImages.length > 0 || Object.values(platformContent).some(c => c && c.trim());
+                                if (hasUnsavedWork) {
+                                    setShowCancelConfirmation(true);
+                                    return;
+                                }
+                                router.push('/');
+                            }}
+                            type="button"
+                            style={{ marginRight: 'auto', background: 'transparent', border: 'none', boxShadow: 'none' }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            className={styles.secondaryBtn}
                             onClick={() => handleSubmit('draft')}
                             disabled={isSubmitting || !hasValidContent()}
                             type="button"
@@ -956,21 +961,16 @@ export default function PostComposer() {
                             <span>Save Draft</span>
                         </button>
                         <button
-                            className={`${styles.primaryBtn} ${hasAnyError() ? styles.errorBtn : ''}`}
+                            className={`${styles.primaryBtn}`}
                             onClick={() => handleSubmit(postMode === 'library' ? 'draft' : (scheduleEnabled ? 'scheduled' : 'published'))}
-                            disabled={!!disabledReason}
+                            disabled={isSaveDisabled}
                             type="button"
-                            title={disabledReason}
+                            title={isSaveDisabled ? 'Please fix validation errors' : undefined}
                         >
                             {isSubmitting ? (
                                 <>
                                     <span className={styles.spinner} />
                                     <span>{postMode === 'library' ? 'Adding...' : 'Publishing...'}</span>
-                                </>
-                            ) : hasAnyError() ? (
-                                <>
-                                    <span className={styles.btnIcon}>⚠️</span>
-                                    <span>Fix Errors</span>
                                 </>
                             ) : postMode === 'library' ? (
                                 <>
@@ -990,127 +990,133 @@ export default function PostComposer() {
                             )}
                         </button>
                     </div>
+
+                    {/* Validation Message Subtext */}
+                    {validationErrors.length > 0 && (
+                        <div className={styles.validationSubtext}>
+                            {validationErrors.map((error, index) => (
+                                <div key={index} className={styles.validationItem}>
+                                    <span>⚠️</span>
+                                    <span>{error}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* Preview Section */}
-            <div className={styles.previewSection}>
+            < div
+                className={styles.previewSection}
+                ref={previewSectionRef}
+                onScroll={(e) => {
+                    const target = e.target as HTMLDivElement;
+                    const scrolledEnough = target.scrollTop > 100;
+                    setIsScrolledToBottom(scrolledEnough);
+                }
+                }
+            >
                 <div className={styles.previewHeader}>
                     <span>👁️</span>
                     <span>Live Previews</span>
                 </div>
 
-                {selectedPlatforms.length === 0 ? (
-                    <div className={styles.emptyPreview}>
-                        <span>📱</span>
-                        <p>Select platforms to see previews</p>
-                    </div>
-                ) : (
-                    selectedPlatforms.map(platformId => {
-                        const platform = PLATFORMS.find(p => p.id === platformId)!;
-                        const content = getContentForPlatform(platformId);
-                        const limit = getCharacterLimit(platformId);
-                        const remaining = limit ? limit - content.length : null;
-                        const charStatus = getCharStatus(content, platformId);
-                        const isCustom = hasCustomContent(platformId);
-                        const username = connectedAccountsMap[platformId]?.username || 'Your Name';
-                        const handle = connectedAccountsMap[platformId]?.handle || (username.includes(' ') ? `@${username.toLowerCase().replace(/\s+/g, '')}` : `@${username}`);
+                {
+                    selectedPlatforms.length === 0 ? (
+                        <div className={styles.emptyPreview}>
+                            <span>📱</span>
+                            <p>Select platforms to see previews</p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Sort platforms: validation errors first */}
+                            {[...selectedPlatforms]
+                                .sort((a, b) => {
+                                    const aImages = platformImages[a] !== undefined ? platformImages[a] : selectedImages;
+                                    const bImages = platformImages[b] !== undefined ? platformImages[b] : selectedImages;
+                                    const aHasError = !!getPlatformValidationError(a, aImages.length) || getCharStatus(getContentForPlatform(a), a) === 'error';
+                                    const bHasError = !!getPlatformValidationError(b, bImages.length) || getCharStatus(getContentForPlatform(b), b) === 'error';
+                                    if (aHasError && !bHasError) return -1;
+                                    if (!aHasError && bHasError) return 1;
+                                    return 0;
+                                })
+                                .map((platformId, index, sortedPlatforms) => {
+                                    const content = getContentForPlatform(platformId);
+                                    const isCustom = hasCustomContent(platformId);
+                                    const username = connectedAccountsMap[platformId]?.username || 'Your Name';
+                                    const handle = connectedAccountsMap[platformId]?.handle || (username.includes(' ') ? `@${username.toLowerCase().replace(/\s+/g, '')}` : `@${username}`);
 
-                        // Helper to get platform-specific avatar class
-                        const getAvatarClass = (pid: string) => {
-                            switch (pid) {
-                                case 'twitter': return styles.previewAvatarTwitter;
-                                case 'facebook': return styles.previewAvatarFacebook;
-                                case 'linkedin': return styles.previewAvatarLinkedin;
-                                case 'instagram': return styles.previewAvatarInstagram;
-                                case 'pinterest': return styles.previewAvatarPinterest;
-                                default: return '';
-                            }
-                        };
+                                    // Calculate effective image count for this platform
+                                    const customImages = platformImages[platformId];
+                                    const effectiveImages = customImages !== undefined ? customImages : selectedImages;
 
-                        return (
-                            <div
-                                key={platformId}
-                                className={`${styles.previewCard} ${activeTab === platformId ? styles.previewCardActive : ''} ${isCustom ? styles.previewCardCustom : ''} ${charStatus === 'error' ? styles.previewError : ''}`}
-                                onClick={() => initializePlatformContent(platformId)}
-                            >
-                                <div className={styles.previewPlatformHeader}>
-                                    <div className={styles.previewUser}>
-                                        <div className={`${styles.previewAvatar} ${getAvatarClass(platformId)}`}>
-                                            {/* Placeholder Avatar - could fetch real one later */}
-                                            {username.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div>
-                                            <div className={styles.previewName}>{username}</div>
-                                            <div className={styles.previewHandle}>{handle}</div>
-                                        </div>
-                                    </div>
-                                    <div className={styles.platformBadgeGroup}>
-                                        {isCustom && (
-                                            <span className={styles.customLabel}>Custom</span>
-                                        )}
-                                        <div className={styles.platformBadge} style={{ color: platform.color }}>
-                                            <span>{getPlatformIcon(platform.id, 16)}</span>
-                                            <span>{platform.name}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className={styles.previewContent}>
-                                    {content || <span className={styles.placeholder}>Your post will appear here...</span>}
-                                </div>
-
-                                {imagePreviews.length > 0 && (
-                                    <div className={styles.previewImages}>
-                                        {imagePreviews.map((preview, index) => (
-                                            <img
-                                                key={index}
-                                                src={preview}
-                                                alt={`Attachment ${index + 1}`}
-                                                className={styles.previewImageThumb}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setPreviewImage(preview);
-                                                }}
-                                                style={{ cursor: 'pointer' }}
+                                    return (
+                                        <React.Fragment key={platformId}>
+                                            <PreviewCard
+                                                platformId={platformId}
+                                                content={content}
+                                                username={username}
+                                                handle={handle}
+                                                isActive={activeTab === platformId}
+                                                isCustom={isCustom}
+                                                imageCount={effectiveImages.length}
+                                                imagePreviews={imagePreviews}
+                                                onClick={() => initializePlatformContent(platformId)}
+                                                onImageClick={(preview) => setPreviewImage(preview)}
                                             />
-                                        ))}
-                                    </div>
-                                )}
-
-                                {limit && (
-                                    <div className={`${styles.charRemaining} ${styles[charStatus]}`}>
-                                        {remaining! >= 0
-                                            ? `${remaining} characters left`
-                                            : `${Math.abs(remaining!)} characters over limit!`
-                                        }
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })
-                )}
-            </div>
+                                        </React.Fragment>
+                                    );
+                                })}
+                            {/* Sticky scroll indicator at bottom of preview section */}
+                            {selectedPlatforms.length > 2 && !isScrolledToBottom && (
+                                <button
+                                    className={styles.scrollHintSticky}
+                                    onClick={() => {
+                                        previewSectionRef.current?.scrollBy({ top: 300, behavior: 'smooth' });
+                                    }}
+                                    type="button"
+                                >
+                                    <span>↓</span>
+                                    <span>{selectedPlatforms.length - 1} more previews below</span>
+                                </button>
+                            )}
+                        </>
+                    )
+                }
+            </div >
             {/* Full Screen Image Preview Modal */}
-            {previewImage && (
-                <div
-                    className={styles.imageModalOverlay}
-                    onClick={() => setPreviewImage(null)}
-                >
+            {
+                previewImage && (
                     <div
-                        className={styles.imageModalContent}
-                        onClick={(e) => e.stopPropagation()}
+                        className={styles.imageModalOverlay}
+                        onClick={() => setPreviewImage(null)}
                     >
-                        <button
-                            className={styles.closeModalBtn}
-                            onClick={() => setPreviewImage(null)}
+                        <div
+                            className={styles.imageModalContent}
+                            onClick={(e) => e.stopPropagation()}
                         >
-                            ✕
-                        </button>
-                        <img src={previewImage} alt="Full size preview" />
+                            <button
+                                className={styles.closeModalBtn}
+                                onClick={() => setPreviewImage(null)}
+                            >
+                                ✕
+                            </button>
+                            <img src={previewImage} alt="Full size preview" />
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+            {/* Confirmation Modal */}
+            <ConfirmModal
+                isOpen={showCancelConfirmation}
+                title="Discard Post?"
+                message="You have unsaved changes. Are you sure you want to discard this post?"
+                confirmText="Discard"
+                cancelText="Keep Editing"
+                variant="danger"
+                onConfirm={() => router.push('/')}
+                onCancel={() => setShowCancelConfirmation(false)}
+            />
+        </div >
     );
 }

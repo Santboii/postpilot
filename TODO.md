@@ -23,7 +23,7 @@
     - [ ] Gate "Pro" features (e.g., specific platforms, unlimited AI usage) in the UI.
 
 ## 🔍 External Approvals (Waiting Game)
-- [ ] **LinkedIn**: Awaiting "Marketing Developer Platform" access approval for Company Page posting.
+- [x] **LinkedIn**: Awaiting "Marketing Developer Platform" access approval for Company Page posting.
 - [ ] **Instagram**: Complete App Review if requesting public permissions (usually needed for "live" mode).
 
 ## 📝 Backlog / Future
@@ -33,3 +33,10 @@
 - [ ] **Review Pricing**: Finalize pricing tiers and payment flow, quantify AI usage limits for each tier.
 - [ ] **Brand DNA Improvements**: Improve brand DNA generation and integration
 - [ ] **Disaster Prevention** Think through potential issues and implement measures to prevent them (e.g. catastrohpic data loss, etc.)
+- [ ] **Bluesky Posting** Implement Bluesky posting functionality.
+- [ ] **Responsive Design**: Ensure the app is mobile-friendly and responsive.
+- [ ] **Video Media**: Confirm video media support for all platforms.
+- [ ] **Success/ Error Toasts**: Implement toast notifications for success and error messages. 
+- [ ] **Social Copilot**: Implement social copilot functionality.
+- [ ] **Pinterest**: Implement Pinterest posting functionality.
+- [ ] **Admin Route**: Implement admin route for managing users and their subscriptions, among other things (i.e. feature flags)

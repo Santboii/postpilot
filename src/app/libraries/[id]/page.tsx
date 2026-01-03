@@ -10,6 +10,7 @@ import { ContentLibrary, Post, PLATFORMS, PlatformId } from '@/types';
 import { deletePost } from '@/lib/db';
 import LibrarySettingsModal, { LibraryAiSettings } from '@/components/libraries/LibrarySettingsModal';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 export default function LibraryDetailPage() {
     const params = useParams();
@@ -25,6 +26,10 @@ export default function LibraryDetailPage() {
 
     // AI Settings Modal
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+    // Confirmation Modals
+    const [showDeleteLibraryConfirm, setShowDeleteLibraryConfirm] = useState(false);
+    const [showDeletePostConfirm, setShowDeletePostConfirm] = useState<string | null>(null);
 
     useEffect(() => {
         if (libraryId) {
@@ -138,7 +143,11 @@ export default function LibraryDetailPage() {
     };
 
     const handleDeleteLibrary = async () => {
-        if (!library || !confirm('Are you sure you want to delete this library? This action cannot be undone and will delete all assigned posts.')) return;
+        setShowDeleteLibraryConfirm(true);
+    };
+
+    const confirmDeleteLibrary = async () => {
+        if (!library) return;
 
         try {
             const res = await fetch(`/api/libraries/${library.id}`, {
@@ -156,11 +165,18 @@ export default function LibraryDetailPage() {
         } catch (error) {
             console.error('Failed to delete library:', error);
             alert('An error occurred while deleting the library');
+        } finally {
+            setShowDeleteLibraryConfirm(false);
         }
     };
 
     const handleDeletePost = async (postId: string) => {
-        if (!confirm('Are you sure you want to delete this post?')) return;
+        setShowDeletePostConfirm(postId);
+    };
+
+    const confirmDeletePost = async () => {
+        if (!showDeletePostConfirm) return;
+        const postId = showDeletePostConfirm;
 
         try {
             await deletePost(postId);
@@ -168,6 +184,8 @@ export default function LibraryDetailPage() {
         } catch (error) {
             console.error('Failed to delete post:', error);
             alert('Failed to delete post');
+        } finally {
+            setShowDeletePostConfirm(null);
         }
     };
 
@@ -535,6 +553,28 @@ export default function LibraryDetailPage() {
                 initialName={library?.name}
                 initialTopic={library?.topic_prompt || ''}
                 onSave={handleSaveAiSettings}
+
+            />
+
+            {/* Confirmation Modals */}
+            <ConfirmModal
+                isOpen={showDeleteLibraryConfirm}
+                title="Delete Library?"
+                message="Are you sure you want to delete this library? This cannot be undone and will delete all posts within it."
+                confirmText="Delete Library"
+                variant="danger"
+                onConfirm={confirmDeleteLibrary}
+                onCancel={() => setShowDeleteLibraryConfirm(false)}
+            />
+
+            <ConfirmModal
+                isOpen={!!showDeletePostConfirm}
+                title="Delete Post?"
+                message="Are you sure you want to delete this post?"
+                confirmText="Delete"
+                variant="danger"
+                onConfirm={confirmDeletePost}
+                onCancel={() => setShowDeletePostConfirm(null)}
             />
         </div>
     );

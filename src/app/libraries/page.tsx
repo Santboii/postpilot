@@ -67,6 +67,27 @@ export default function LibrariesPage() {
     const [newLibraryId, setNewLibraryId] = useState<string | null>(null);
     const [isOptimizing, setIsOptimizing] = useState(false);
 
+    // Pinterest Board State
+    const [pinterestBoards, setPinterestBoards] = useState<{ id: string; name: string }[]>([]);
+    const [pinterestBoardId, setPinterestBoardId] = useState<string>('');
+    const [loadingBoards, setLoadingBoards] = useState(false);
+
+    // Fetch Pinterest boards when Pinterest is added to platforms
+    const fetchPinterestBoards = async () => {
+        setLoadingBoards(true);
+        try {
+            const res = await fetch('/api/pinterest/boards');
+            if (res.ok) {
+                const data = await res.json();
+                setPinterestBoards(data.boards || []);
+            }
+        } catch (error) {
+            console.error('Failed to fetch Pinterest boards:', error);
+        } finally {
+            setLoadingBoards(false);
+        }
+    };
+
     const handleOptimizePrompt = async () => {
         if (!topicPrompt.trim() || isOptimizing) return;
 
@@ -105,6 +126,8 @@ export default function LibrariesPage() {
         setEditingLibraryId(null);
         setGeneratedPosts([]);
         setNewLibraryId(null);
+        setPinterestBoards([]);
+        setPinterestBoardId('');
     };
 
     const handleTemplateSelect = (template: LibraryTemplate | null) => {
@@ -133,6 +156,12 @@ export default function LibrariesPage() {
         setAudience(settings.audience || '');
         setHashtagStrategy(settings.hashtag_strategy || 'none');
         setPlatforms(lib.platforms || []);
+        setPinterestBoardId(settings.pinterest_board_id || '');
+
+        // Fetch boards if Pinterest is in platforms
+        if (lib.platforms?.includes('pinterest')) {
+            fetchPinterestBoards();
+        }
 
         setEditingLibraryId(lib.id);
         setWizardStep('details');
@@ -178,7 +207,8 @@ export default function LibrariesPage() {
                         language,
                         audience,
                         hashtag_strategy: hashtagStrategy,
-                        use_emojis: true // Defaulting to true for now
+                        use_emojis: true,
+                        pinterest_board_id: pinterestBoardId || undefined
                     }
                 }),
             });
@@ -261,7 +291,8 @@ export default function LibrariesPage() {
                         language,
                         audience,
                         hashtag_strategy: hashtagStrategy,
-                        use_emojis: true
+                        use_emojis: true,
+                        pinterest_board_id: pinterestBoardId || undefined
                     }
                 }),
             });
@@ -358,9 +389,16 @@ export default function LibrariesPage() {
                                     <button
                                         key={p.id}
                                         className={`${styles.platformBtn} ${platforms.includes(p.id) ? styles.active : ''}`}
-                                        onClick={() => setPlatforms(prev =>
-                                            prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
-                                        )}
+                                        onClick={() => {
+                                            const isAdding = !platforms.includes(p.id);
+                                            setPlatforms(prev =>
+                                                prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
+                                            );
+                                            // Fetch Pinterest boards when Pinterest is added
+                                            if (p.id === 'pinterest' && isAdding && pinterestBoards.length === 0) {
+                                                fetchPinterestBoards();
+                                            }
+                                        }}
                                     >
                                         <span className={styles.platformIcon} style={{ color: platforms.includes(p.id) ? p.color : 'inherit' }}>
                                             {p.icon}
@@ -370,6 +408,27 @@ export default function LibrariesPage() {
                                 ))}
                             </div>
                         </div>
+
+                        {/* Pinterest Board Selector */}
+                        {platforms.includes('pinterest') && (
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>
+                                    Pinterest Board
+                                    <span className={styles.labelHint}>Where pins will be posted</span>
+                                </label>
+                                <select
+                                    className={styles.select}
+                                    value={pinterestBoardId}
+                                    onChange={e => setPinterestBoardId(e.target.value)}
+                                    disabled={loadingBoards}
+                                >
+                                    <option value="">{loadingBoards ? 'Loading boards...' : 'Select a board'}</option>
+                                    {pinterestBoards.map(board => (
+                                        <option key={board.id} value={board.id}>{board.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         <div className={styles.formRow}>
                             <div className={styles.formGroup}>
