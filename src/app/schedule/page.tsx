@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, GripVertical, CalendarPlus } from 'lucide-react';
 import styles from './Schedule.module.css';
-import { ContentLibrary, WeeklySlot, PlatformId, PLATFORMS } from '@/types';
+import { ContentLibrary, WeeklySlot, PlatformId } from '@/types';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 import { useWeeklySlots, useLibraries } from '@/hooks/useQueries';
 import { DndContext, DragEndEvent, useDraggable, useDroppable, DragOverlay, DragStartEvent } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
@@ -16,21 +17,36 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0-23
 const EMPTY_SLOTS: WeeklySlot[] = [];
 
 // --- Draggable Slot Component ---
-function DraggableSlot({ slot, onClick, onDelete, isOverlay = false }: { slot: WeeklySlot & { content_libraries?: any }, onClick?: (e: React.MouseEvent) => void, onDelete?: (e: React.MouseEvent, id: string) => void, isOverlay?: boolean }) {
+function DraggableSlot({
+    slot,
+    onClick,
+    onDelete,
+    isOverlay = false,
+    style: styleOverride = {}
+}: {
+    slot: WeeklySlot & { content_libraries?: any },
+    onClick?: (e: React.MouseEvent) => void,
+    onDelete?: (e: React.MouseEvent, id: string) => void,
+    isOverlay?: boolean,
+    style?: React.CSSProperties
+}) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `slot-${slot.id}`,
         data: slot,
     });
 
     const [hour] = slot.time_of_day.split(':').map(Number);
-    const top = hour * 60; // 60px per hour - relative to parent day column
+    const top = hour * 75; // 75px per hour - relative to parent day column
 
-    const style: React.CSSProperties = {
-        top: isOverlay ? 0 : `${top + 4}px`, // In overlay, we let DndContext handle positioning or reset relative top
-        height: `52px`,
+    // Get library platforms for icons
+    const libraryPlatforms: PlatformId[] = slot.content_libraries?.platforms || [];
+
+    const baseStyle: React.CSSProperties = {
+        top: isOverlay ? 0 : `${top + 4}px`,
+        height: `67px`,
         backgroundColor: slot.content_libraries?.color || '#6366f1',
         transform: CSS.Translate.toString(transform),
-        opacity: isDragging ? 0 : 1, // Hide original when dragging (we use overlay)
+        opacity: isDragging ? 0 : 1,
         zIndex: isOverlay ? 999 : (isDragging ? 100 : 10),
         position: isOverlay ? 'relative' : 'absolute',
         left: isOverlay ? 0 : '4px',
@@ -38,30 +54,59 @@ function DraggableSlot({ slot, onClick, onDelete, isOverlay = false }: { slot: W
         width: isOverlay ? '100%' : 'auto',
         boxShadow: isOverlay ? '0 10px 20px rgba(0,0,0,0.2)' : undefined,
         scale: isOverlay ? '1.05' : '1',
-        cursor: 'grab',
     };
+
+    // Merge overrides (allowing tiling logic to override left/width)
+    const style = { ...baseStyle, ...styleOverride };
 
     return (
         <div
+            id={`slot-${slot.id}`}
             ref={setNodeRef}
             style={style}
             className={styles.slot}
-            {...listeners}
             {...attributes}
             onClick={onClick}
             title={`${slot.content_libraries?.name} (${slot.time_of_day})`}
             data-dragging={isDragging}
         >
-            <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {slot.content_libraries?.name || 'Unknown'}
+            {/* Drag Handle - only this part initiates drag */}
+            <div
+                className={styles.dragHandle}
+                {...listeners}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <GripVertical size={12} />
             </div>
-            <div style={{ fontSize: '0.7rem', opacity: 0.9 }}>
-                {slot.time_of_day.slice(0, 5)}
+
+            {/* Clickable content area */}
+            <div className={styles.slotContent}>
+                <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {slot.content_libraries?.name || 'Unknown'}
+                </div>
+                <div style={{ fontSize: '0.7rem', opacity: 0.9 }}>
+                    {slot.time_of_day.slice(0, 5)}
+                </div>
+                {/* Platform Icons */}
+                <div style={{ display: 'flex', gap: '3px', marginTop: '2px' }}>
+                    {libraryPlatforms.slice(0, 4).map(pid => (
+                        <span key={pid} style={{ opacity: 0.85 }}>
+                            {getPlatformIcon(pid, 11)}
+                        </span>
+                    ))}
+                    {libraryPlatforms.length > 4 && (
+                        <span style={{ fontSize: '9px', opacity: 0.7 }}>+{libraryPlatforms.length - 4}</span>
+                    )}
+                </div>
             </div>
+
             {!isOverlay && onDelete && (
                 <button
                     className={styles.deleteBtn}
-                    onClick={(e) => onDelete(e, slot.id)}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(e, slot.id);
+                    }}
                 >
                     <X size={10} />
                 </button>
@@ -70,7 +115,7 @@ function DraggableSlot({ slot, onClick, onDelete, isOverlay = false }: { slot: W
     );
 }
 
-// --- Droppable Cell Component ---
+// ... Droppable Cell Component ...
 function DroppableCell({ dayIndex, hour, onClick, children }: { dayIndex: number, hour: number, onClick: () => void, children?: React.ReactNode }) {
     const { setNodeRef, isOver } = useDroppable({
         id: `cell-${dayIndex}-${hour}`,
@@ -93,8 +138,6 @@ function DroppableCell({ dayIndex, hour, onClick, children }: { dayIndex: number
         </div>
     );
 }
-
-
 export default function SchedulePage() {
     const queryClient = useQueryClient();
 
@@ -116,9 +159,9 @@ export default function SchedulePage() {
     const [selectedDay, setSelectedDay] = useState<number>(0);
     const [selectedHour, setSelectedHour] = useState<number>(9);
     const [selectedLibraryId, setSelectedLibraryId] = useState<string>('');
-    const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformId[]>(['twitter', 'linkedin']);
     const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
     // Initialize library selection when libraries load
     useEffect(() => {
@@ -126,6 +169,15 @@ export default function SchedulePage() {
             setSelectedLibraryId(libraries[0].id);
         }
     }, [libraries]);
+
+    const openAddModal = () => {
+        const today = new Date().getDay();
+        setSelectedDay(today);
+        setSelectedHour(9);
+        setSelectedLibraryId('');
+        setEditingSlotId(null);
+        setIsModalOpen(true);
+    };
 
     const handleCellClick = (dayIndex: number, hour: number) => {
         setSelectedDay(dayIndex);
@@ -141,15 +193,20 @@ export default function SchedulePage() {
         const [hour] = slot.time_of_day.split(':').map(Number);
         setSelectedHour(hour);
         setSelectedLibraryId(slot.library_id);
-        setSelectedPlatforms(slot.platform_ids);
         setEditingSlotId(slot.id);
         setIsModalOpen(true);
     };
 
 
-    const handleDeleteSlot = async (e: React.MouseEvent, id: string) => {
+    const handleDeleteSlot = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
-        if (!confirm('Are you sure you want to delete this slot?')) return;
+        setPendingDeleteId(id);
+    };
+
+    const confirmDeleteSlot = async () => {
+        if (!pendingDeleteId) return;
+        const id = pendingDeleteId;
+        setPendingDeleteId(null);
 
         // Optimistic Delete via Query Cache
         queryClient.setQueryData<WeeklySlot[]>(queryKeys.weeklySlots, (old) => {
@@ -172,6 +229,10 @@ export default function SchedulePage() {
 
         const timeString = `${selectedHour.toString().padStart(2, '0')}:00:00`;
 
+        // Get platforms from selected library
+        const selectedLibrary = libraries.find((lib: ContentLibrary) => lib.id === selectedLibraryId);
+        const libraryPlatforms = selectedLibrary?.platforms || [];
+
         try {
             const url = '/api/schedule/slots';
             const method = editingSlotId ? 'PUT' : 'POST';
@@ -180,7 +241,7 @@ export default function SchedulePage() {
                 library_id: selectedLibraryId,
                 day_of_week: selectedDay,
                 time_of_day: timeString,
-                platform_ids: selectedPlatforms
+                platform_ids: libraryPlatforms
             };
 
             const res = await fetch(url, {
@@ -201,9 +262,20 @@ export default function SchedulePage() {
     };
 
     const handleDragStart = (event: DragStartEvent) => {
-        setActiveDragSlot(event.active.data.current as WeeklySlot);
+        const slot = event.active.data.current as WeeklySlot;
+        setActiveDragSlot(slot);
+
+        // Capture width from dnd-kit's rect first, fallback to DOM query
         const width = event.active.rect.current.initial?.width;
-        if (width) setDragWidth(width);
+        if (width) {
+            setDragWidth(width);
+        } else {
+            // Fallback: measure from DOM
+            const el = document.getElementById(`slot-${slot.id}`);
+            if (el) {
+                setDragWidth(el.getBoundingClientRect().width);
+            }
+        }
     };
 
     // Drag End Handler
@@ -269,30 +341,57 @@ export default function SchedulePage() {
         }
     };
 
-    const togglePlatform = (id: PlatformId) => {
-        if (selectedPlatforms.includes(id)) {
-            setSelectedPlatforms(selectedPlatforms.filter(p => p !== id));
-        } else {
-            setSelectedPlatforms([...selectedPlatforms, id]);
-        }
-    };
-
     // Helper to render slots in a day column
     const renderSlotsForDay = (dayIndex: number) => {
         // Render directly from useQuery slots (which encapsulates optimistic updates)
         const daySlots = slots.filter((s: WeeklySlot) => s.day_of_week === dayIndex);
 
-        return daySlots.map((slot: WeeklySlot & { content_libraries?: any }) => (
-            <DraggableSlot
-                key={slot.id}
-                slot={slot}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    openEditModal(slot);
-                }}
-                onDelete={handleDeleteSlot}
-            />
-        ));
+        // Group slots by hour to handle overlaps
+        const slotsByHour: Record<number, WeeklySlot[]> = {};
+        daySlots.forEach(slot => {
+            const hour = parseInt(slot.time_of_day.split(':')[0]);
+            if (!slotsByHour[hour]) slotsByHour[hour] = [];
+            slotsByHour[hour].push(slot);
+        });
+
+        // Flatten back to array with calculated styles
+        const renderedSlots: any[] = [];
+
+        Object.entries(slotsByHour).forEach(([hourStr, hourSlots]) => {
+            const count = hourSlots.length;
+            // Sort by ID or creation time to ensure stable order? 
+            // Slots come ordered by time_of_day, so stable sort is good.
+
+            hourSlots.forEach((slot, index) => {
+                let styleOverride: React.CSSProperties = {};
+
+                if (count > 1) {
+                    const widthPercent = 100 / count;
+                    const leftPercent = index * widthPercent;
+
+                    styleOverride = {
+                        width: `calc(${widthPercent}% - 6px)`, // Subtract gap/padding
+                        left: `calc(${leftPercent}% + 2px)`,
+                        right: 'auto' // unset the default right: 4px
+                    };
+                }
+
+                renderedSlots.push(
+                    <DraggableSlot
+                        key={slot.id}
+                        slot={slot}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            openEditModal(slot);
+                        }}
+                        onDelete={handleDeleteSlot}
+                        style={styleOverride}
+                    />
+                );
+            });
+        });
+
+        return renderedSlots;
     };
 
     if (isError) {
@@ -324,131 +423,176 @@ export default function SchedulePage() {
     }
 
     return (
-        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div className={styles.container}>
-                <div className={styles.header}>
-                    <div>
-                        <h1 className={styles.title}>Weekly Schedule</h1>
-                        <p className={styles.subtitle}>Automate your posting cadence by assigning libraries to time slots.</p>
+        <>
+            <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+                <div className={styles.container}>
+                    <div className={styles.header}>
+                        <div>
+                            <h1 className={styles.title}>Weekly Schedule</h1>
+                            <p className={styles.subtitle}>Automate your posting cadence by assigning libraries to time slots.</p>
+                        </div>
+                        <button
+                            onClick={openAddModal}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '0.75rem 1rem',
+                                background: 'var(--gradient-primary)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: 'var(--radius-md)',
+                                cursor: 'pointer',
+                                fontSize: '0.9rem',
+                                fontWeight: 500,
+                                zIndex: 5,
+                                boxShadow: 'var(--shadow-md)',
+                            }}
+                        >
+                            <CalendarPlus size={18} />
+                            Schedule Library
+                        </button>
                     </div>
-                </div>
 
-                <div className={styles.calendarWrapper}>
-                    <div className={styles.daysHeader}>
-                        <div className={styles.timeColHeader} />
-                        {DAYS.map((day, i) => (
-                            <div key={day} className={styles.dayHeader}>
-                                {day}
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className={styles.gridScroller}>
-                        <div className={styles.timeGrid}>
-                            <div className={styles.timeLabels}>
-                                {HOURS.map(h => (
-                                    <div key={h} className={styles.timeLabel}>
-                                        {h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`}
-                                    </div>
-                                ))}
-                            </div>
-
-                            {DAYS.map((_, dayIndex) => (
-                                <div key={dayIndex} className={styles.dayColumn}>
-                                    {HOURS.map(h => (
-                                        <DroppableCell
-                                            key={`${dayIndex}-${h}`}
-                                            dayIndex={dayIndex}
-                                            hour={h}
-                                            onClick={() => handleCellClick(dayIndex, h)}
-                                        />
-                                    ))}
-
-                                    {/* Render Slots Layered on Top */}
-                                    {renderSlotsForDay(dayIndex)}
+                    <div className={styles.calendarWrapper}>
+                        <div className={styles.daysHeader}>
+                            <div className={styles.timeColHeader} />
+                            {DAYS.map((day, i) => (
+                                <div key={day} className={styles.dayHeader}>
+                                    {day}
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </div>
 
-                <DragOverlay>
-                    {activeDragSlot ? (
-                        <div style={{ width: dragWidth ? `${dragWidth}px` : 'var(--slot-width, 140px)' }}>
-                            <DraggableSlot slot={activeDragSlot} isOverlay />
-                        </div>
-                    ) : null}
-                </DragOverlay>
+                        <div className={styles.gridScroller}>
+                            <div className={styles.timeGrid}>
+                                <div className={styles.timeLabels}>
+                                    {HOURS.map(h => (
+                                        <div key={h} className={styles.timeLabel}>
+                                            {h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`}
+                                        </div>
+                                    ))}
+                                </div>
 
-                {isModalOpen && (
-                    <div className={styles.modalOverlay} onClick={() => setIsModalOpen(false)}>
-                        <div className={styles.modal} onClick={e => e.stopPropagation()}>
-                            <h2 className={styles.modalTitle}>
-                                {editingSlotId ? 'Edit Slot' : 'Add Slot'} for {DAYS[selectedDay]} @ {selectedHour}:00
-                            </h2>
-
-                            <form onSubmit={handleSubmit}>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Select Library</label>
-                                    <select
-                                        className={styles.select}
-                                        value={selectedLibraryId}
-                                        onChange={e => setSelectedLibraryId(e.target.value)}
-                                        required
-                                    >
-                                        <option value="" disabled>Choose a library...</option>
-                                        {libraries.map((lib: any) => (
-                                            <option key={lib.id} value={lib.id}>
-                                                {lib.name} ({lib.post_count || 0} posts)
-                                            </option>
+                                {DAYS.map((_, dayIndex) => (
+                                    <div key={dayIndex} className={styles.dayColumn}>
+                                        {HOURS.map(h => (
+                                            <DroppableCell
+                                                key={`${dayIndex}-${h}`}
+                                                dayIndex={dayIndex}
+                                                hour={h}
+                                                onClick={() => handleCellClick(dayIndex, h)}
+                                            />
                                         ))}
-                                    </select>
-                                    <p className={styles.helperText}>
-                                        📚 Posts from this library will be automatically published at this time slot each week.
-                                    </p>
-                                </div>
 
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Platforms to Publish To</label>
-                                    <div className={styles.platformGrid}>
-                                        {PLATFORMS.filter(p => p.id !== 'threads').map(platform => {
-                                            const isSelected = selectedPlatforms.includes(platform.id as PlatformId);
-                                            return (
-                                                <div
-                                                    key={platform.id}
-                                                    className={`${styles.platformOption} ${isSelected ? styles.selected : ''}`}
-                                                    onClick={() => togglePlatform(platform.id as PlatformId)}
-                                                    title={platform.name}
-                                                >
-                                                    {getPlatformIcon(platform.id, 16)}
-                                                </div>
-                                            );
-                                        })}
+                                        {/* Render Slots Layered on Top */}
+                                        {renderSlotsForDay(dayIndex)}
                                     </div>
-                                </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
 
-                                <div className={styles.modalActions}>
-                                    <button
-                                        type="button"
-                                        className={styles.cancelBtn}
-                                        onClick={() => setIsModalOpen(false)}
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className={styles.submitBtn}
-                                        disabled={isSubmitting || !selectedLibraryId || selectedPlatforms.length === 0}
-                                    >
-                                        {editingSlotId ? 'Save Changes' : 'Add Slot'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div >
-                    </div >
-                )
-                }
-            </div >
-        </DndContext>
+                    <DragOverlay>
+                        {activeDragSlot ? (
+                            <div style={{ width: dragWidth ? `${dragWidth}px` : 'var(--slot-width, 140px)' }}>
+                                <DraggableSlot slot={activeDragSlot} isOverlay />
+                            </div>
+                        ) : null}
+                    </DragOverlay>
+
+                    {isModalOpen && (
+                        <div className={styles.modalOverlay} onClick={() => setIsModalOpen(false)}>
+                            <div className={styles.modal} onClick={e => e.stopPropagation()}>
+                                <h2 className={styles.modalTitle}>
+                                    {editingSlotId ? 'Edit Slot' : 'Add Slot'} for {DAYS[selectedDay]} @ {selectedHour}:00
+                                </h2>
+
+                                <form onSubmit={handleSubmit}>
+                                    <div className={styles.formGroup}>
+                                        <label className={styles.label}>Select Library</label>
+                                        <select
+                                            className={styles.select}
+                                            value={selectedLibraryId}
+                                            onChange={e => setSelectedLibraryId(e.target.value)}
+                                            required
+                                        >
+                                            <option value="" disabled>Choose a library...</option>
+                                            {libraries.map((lib: any) => (
+                                                <option key={lib.id} value={lib.id}>
+                                                    {lib.name} ({lib.post_count || 0} posts)
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className={styles.helperText}>
+                                            📚 Posts from this library will be automatically published at this time slot each week.
+                                        </p>
+                                    </div>
+
+                                    {/* Day and Hour Selectors */}
+                                    <div style={{ display: 'flex', gap: '12px' }}>
+                                        <div className={styles.formGroup} style={{ flex: 1 }}>
+                                            <label className={styles.label}>Day</label>
+                                            <select
+                                                className={styles.select}
+                                                value={selectedDay}
+                                                onChange={e => setSelectedDay(Number(e.target.value))}
+                                            >
+                                                {DAYS.map((day, i) => (
+                                                    <option key={i} value={i}>{day}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className={styles.formGroup} style={{ flex: 1 }}>
+                                            <label className={styles.label}>Time</label>
+                                            <select
+                                                className={styles.select}
+                                                value={selectedHour}
+                                                onChange={e => setSelectedHour(Number(e.target.value))}
+                                            >
+                                                {HOURS.map(h => (
+                                                    <option key={h} value={h}>
+                                                        {h === 0 ? '12:00 AM' : h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className={styles.modalActions}>
+                                        <button
+                                            type="button"
+                                            className={styles.cancelBtn}
+                                            onClick={() => setIsModalOpen(false)}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className={styles.submitBtn}
+                                            disabled={isSubmitting || !selectedLibraryId}
+                                        >
+                                            {editingSlotId ? 'Save Changes' : 'Add Slot'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </DndContext>
+
+            {/* Delete Slot Confirmation Modal */}
+            <ConfirmModal
+                isOpen={!!pendingDeleteId}
+                title="Delete Time Slot"
+                message="Are you sure you want to delete this time slot? This action cannot be undone."
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+                onConfirm={confirmDeleteSlot}
+                onCancel={() => setPendingDeleteId(null)}
+            />
+        </>
     );
 }

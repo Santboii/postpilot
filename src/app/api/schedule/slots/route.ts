@@ -11,7 +11,7 @@ export async function GET() {
 
     const { data: slots, error } = await supabase
         .from('weekly_slots')
-        .select('*, content_libraries(name, color)')
+        .select('*, content_libraries(name, color, platforms)')
         .eq('user_id', user.id)
         .order('day_of_week')
         .order('time_of_day');
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
                 time_of_day,
                 platform_ids
             })
-            .select('*, content_libraries(name, color)')
+            .select('*, content_libraries(name, color, platforms)')
             .single();
 
         if (error) throw error;
@@ -86,7 +86,7 @@ export async function PUT(request: Request) {
             })
             .eq('id', id)
             .eq('user_id', user.id)
-            .select('*, content_libraries(name, color)')
+            .select('*, content_libraries(name, color, platforms)')
             .single();
 
         if (error) throw error;

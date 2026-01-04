@@ -4,6 +4,7 @@ import { getMetaAuthUrl } from '@/lib/social/meta';
 
 export async function GET() {
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/meta/callback`;
+    console.log('[Meta Auth] Redirect URI:', redirectUri);
 
     // Generate a random state for CSRF protection
     const state = crypto.randomUUID();

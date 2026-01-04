@@ -3,9 +3,11 @@
 ## 🚀 Immediate Next Steps (Core Integrations)
 - [ ] **Instagram API Application**: Finalize app settings in Meta Developer Portal (Review Permissions: `instagram_basic`, `instagram_content_publish`).
 - [ ] **Threads Integration**: Research API availability (currently in beta/limited access). Apply for access if available.
-- [x] **Bluesky Integration**: Implement AT Protocol integration for posting.
+- [x] **Bluesky Posting** Implement Bluesky posting functionality.
+- [x] **Pinterest**: Implement Pinterest posting functionality.
 - [ ] **Mastodon Integration**: Implement ActivityPub/Mastodon API posting.
 - [ ] **Tumblr Integration**: Add Tumblr API support (text + image posts).
+
 
 ## 🧪 Testing & Stability
 - [ ] **Testing Suite Setup**: 
@@ -26,17 +28,18 @@
 - [x] **LinkedIn**: Awaiting "Marketing Developer Platform" access approval for Company Page posting.
 - [ ] **Instagram**: Complete App Review if requesting public permissions (usually needed for "live" mode).
 
-## 📝 Backlog / Future
+## 📝 Backlog / FutureI
 - [ ] **Analytics Dashboard**: Aggregate metrics (likes, views) from all platforms.
 - [ ] **Team Collaboration**: Allow multiple users to manage one workspace.
 - [ ] **Browser Extension**: Quick share from any page.
 - [ ] **Review Pricing**: Finalize pricing tiers and payment flow, quantify AI usage limits for each tier.
 - [ ] **Brand DNA Improvements**: Improve brand DNA generation and integration
 - [ ] **Disaster Prevention** Think through potential issues and implement measures to prevent them (e.g. catastrohpic data loss, etc.)
-- [ ] **Bluesky Posting** Implement Bluesky posting functionality.
 - [ ] **Responsive Design**: Ensure the app is mobile-friendly and responsive.
 - [ ] **Video Media**: Confirm video media support for all platforms.
 - [ ] **Success/ Error Toasts**: Implement toast notifications for success and error messages. 
 - [ ] **Social Copilot**: Implement social copilot functionality.
-- [ ] **Pinterest**: Implement Pinterest posting functionality.
 - [ ] **Admin Route**: Implement admin route for managing users and their subscriptions, among other things (i.e. feature flags)
+- [ ] **Code Cleanup**: Clean up code and remove unused code.
+- [ ] **Update content libraries with the following**: 
+- [ ] **Twitter Fix:** fix media upload issue, images aren't uploading as intended

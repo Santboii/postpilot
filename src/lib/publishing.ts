@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Post, PlatformId } from '@/types';
-import { postTweet, refreshAccessToken } from '@/lib/social/x';
+import { postTweet, refreshAccessToken, uploadMedia } from '@/lib/social/x';
 import { postToFacebookPage, postToInstagram } from '@/lib/social/meta';
 
 // Define DB types locally to strictly type the admin query results
@@ -86,7 +86,7 @@ export async function publishScheduledPosts() {
                         const content = platformData.custom_content || post.content;
 
                         if (platformId === 'twitter') {
-                            await publishToTwitter(supabase, connection, content);
+                            await publishToTwitter(supabase, connection, content, post.media);
                         } else if (platformId === 'facebook') {
                             await publishToFacebook(connection, content, post.media);
                         } else if (platformId === 'instagram') {
@@ -151,7 +151,7 @@ export async function publishScheduledPosts() {
 }
 
 // Helper: Publish to Twitter with token refresh
-async function publishToTwitter(supabase: any, connection: any, content: string) {
+async function publishToTwitter(supabase: any, connection: any, content: string, mediaUrls: string[] = []) {
     let accessToken = connection.access_token;
 
     // Refresh if needed
@@ -170,7 +170,25 @@ async function publishToTwitter(supabase: any, connection: any, content: string)
             .eq('id', connection.id);
     }
 
-    await postTweet(accessToken, content);
+    const mediaIds: string[] = [];
+    if (mediaUrls && mediaUrls.length > 0) {
+        // Limit to 4 images
+        const attachments = mediaUrls.slice(0, 4);
+
+        // Upload in parallel
+        const uploadedIds = await Promise.all(attachments.map(async (url) => {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`Failed to fetch image: ${url}`);
+            const arrayBuffer = await res.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            // Derive mime type from url or response header, default to image/jpeg if unknown
+            const contentType = res.headers.get('content-type') || 'image/jpeg';
+            return uploadMedia(accessToken, buffer, contentType);
+        }));
+        mediaIds.push(...uploadedIds);
+    }
+
+    await postTweet(accessToken, content, mediaIds);
 }
 
 // Helper: Publish to Facebook

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { postTweet, refreshAccessToken } from '@/lib/social/x';
+import { postTweet, refreshAccessToken, uploadMedia } from '@/lib/social/x';
 
 /**
  * Publish a tweet to X
@@ -16,7 +16,6 @@ export async function POST(request: NextRequest) {
         if (authError || !user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-
         // Parse request body
         const body = await request.json();
         const { postId, content } = body;
@@ -104,7 +103,7 @@ export async function POST(request: NextRequest) {
                     const buffer = Buffer.from(arrayBuffer);
 
                     // Upload to X
-                    return import('@/lib/social/x').then(m => m.uploadMedia(accessToken, buffer, media.type));
+                    return uploadMedia(accessToken, buffer, media.type);
                 }));
 
                 mediaIds.push(...uploadedIds);

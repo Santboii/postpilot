@@ -188,41 +188,108 @@ export async function getXUserInfo(accessToken: string): Promise<XUser> {
  * Upload media to X (Twitter) v1.1 API
  * Note: Uses v1.1 because v2 media upload is not yet fully standard/available for all endpoints.
  */
+/**
+ * Upload media to X (Twitter) v1.1 API
+ * Note: Uses v1.1 because v2 media upload is not yet fully standard/available for all endpoints.
+ */
 export async function uploadMedia(
     accessToken: string,
     fileBuffer: Buffer,
     mimeType: string
 ): Promise<string> {
     const UPLOAD_URL = 'https://upload.twitter.com/1.1/media/upload.json';
-    const boundary = '----WebKitFormBoundary' + crypto.randomBytes(16).toString('hex');
 
-    // Manually construct multipart form data body
-    // This is often more reliable than using FormData in server-side edge cases with standard fetch
-    let body = Buffer.concat([
-        Buffer.from(`--${boundary}\r\n`, 'utf8'),
-        Buffer.from(`Content-Disposition: form-data; name="media"; filename="image"\r\n`, 'utf8'),
-        Buffer.from(`Content-Type: ${mimeType}\r\n\r\n`, 'utf8'),
-        fileBuffer,
-        Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8'),
-    ]);
+    // 1. INIT: Allocate size
+    const category = mimeType.startsWith('video/') ? 'tweet_video' :
+        mimeType === 'image/gif' ? 'tweet_gif' :
+            'tweet_image';
 
-    const response = await fetch(UPLOAD_URL, {
+    const initParams = new URLSearchParams({
+        command: 'INIT',
+        total_bytes: fileBuffer.length.toString(),
+        media_type: mimeType,
+        media_category: category
+    });
+
+    const initRes = await fetch(UPLOAD_URL, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': `multipart/form-data; boundary=${boundary}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
         },
-        body: body,
+        body: initParams,
     });
 
-    if (!response.ok) {
-        const error = await response.text();
-        console.error('X media upload error:', error);
-        throw new Error(`Failed to upload media: ${response.status} - ${error}`);
+    if (!initRes.ok) {
+        const errorText = await initRes.text();
+        console.error('X media upload INIT error:', {
+            status: initRes.status,
+            statusText: initRes.statusText,
+            body: errorText
+        });
+        throw new Error(`Failed to initialize X media upload: ${initRes.status} - ${errorText}`);
     }
 
-    const data = await response.json();
-    return data.media_id_string;
+    const { media_id_string } = await initRes.json();
+    console.log('[X] Media INIT success:', media_id_string);
+
+    // 2. APPEND
+    const formData = new FormData();
+    formData.append('command', 'APPEND');
+    formData.append('media_id', media_id_string);
+    formData.append('segment_index', '0');
+    // Convert Buffer to Uint8Array for standard Blob compatibility
+    const blob = new Blob([new Uint8Array(fileBuffer)], { type: mimeType });
+    formData.append('media', blob, 'media'); // Twitter requires a filename for the file part
+
+    const appendRes = await fetch(UPLOAD_URL, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            // Content-Type is auto-set by fetch for FormData
+        },
+        body: formData,
+    });
+
+    if (!appendRes.ok) {
+        const errorText = await appendRes.text();
+        console.error('X media upload APPEND error:', {
+            status: appendRes.status,
+            statusText: appendRes.statusText,
+            body: errorText
+        });
+        throw new Error(`Failed to append X media chunk: ${appendRes.status} - ${errorText}`);
+    }
+    console.log('[X] Media APPEND success');
+
+    // 3. FINALIZE
+    const finalizeParams = new URLSearchParams({
+        command: 'FINALIZE',
+        media_id: media_id_string
+    });
+
+    const finalizeRes = await fetch(UPLOAD_URL, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: finalizeParams,
+    });
+
+    if (!finalizeRes.ok) {
+        const errorText = await finalizeRes.text();
+        console.error('X media upload FINALIZE error:', {
+            status: finalizeRes.status,
+            statusText: finalizeRes.statusText,
+            body: errorText
+        });
+        throw new Error(`Failed to finalize X media upload: ${finalizeRes.status} - ${errorText}`);
+    }
+
+    const finalizeData = await finalizeRes.json();
+    console.log('[X] Media FINALIZE success:', finalizeData);
+    return finalizeData.media_id_string || media_id_string;
 }
 
 /**
