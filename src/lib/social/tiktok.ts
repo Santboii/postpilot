@@ -262,8 +262,12 @@ export async function postVideo(
     accessToken: string,
     fileBuffer: Buffer,
     title: string,
-    privacyLevel: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY' = 'PUBLIC_TO_EVERYONE'
+    privacyLevel: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY' = 'PUBLIC_TO_EVERYONE',
+    mimeType: string = 'video/mp4'
 ): Promise<{ publish_id: string }> {
+
+    // 0. Validate Video
+    validateVideo(fileBuffer, mimeType);
 
     // 1. Initialize Upload
     const postInfo = {
@@ -291,7 +295,7 @@ export async function postVideo(
     const uploadResponse = await fetch(upload_url, {
         method: 'PUT',
         headers: {
-            'Content-Type': 'video/mp4', // Adjust based on file type if dynamic
+            'Content-Type': mimeType,
             'Content-Length': fileBuffer.length.toString(),
             'Content-Range': `bytes 0-${fileBuffer.length - 1}/${fileBuffer.length}`
         },
