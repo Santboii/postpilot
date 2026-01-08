@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import styles from './page.module.css';
 
 export default function LoginPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { signIn, signUp } = useAuth();
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
@@ -17,6 +18,17 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
 
+    const priceId = searchParams.get('price_id');
+    const redirectPath = priceId
+        ? `/pricing?action=checkout&price_id=${priceId}`
+        : '/';
+
+    const getRedirectUrl = () => {
+        return typeof window !== 'undefined'
+            ? `${window.location.origin}${redirectPath}`
+            : undefined;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
@@ -25,7 +37,7 @@ export default function LoginPage() {
 
         try {
             if (isSignUp) {
-                const { error } = await signUp(email, password, displayName);
+                const { error } = await signUp(email, password, displayName, getRedirectUrl());
                 if (error) {
                     setError(error.message);
                 } else {
@@ -36,7 +48,7 @@ export default function LoginPage() {
                 if (error) {
                     setError(error.message);
                 } else {
-                    router.push('/');
+                    router.push(redirectPath);
                 }
             }
         } finally {
@@ -64,7 +76,7 @@ export default function LoginPage() {
                         />
                     </div>
                     <h1>SocialsGenie</h1>
-                    <p>AI-Powered Social Media Management</p>
+                    <p>{priceId ? 'Complete your subscription' : 'AI-Powered Social Media Management'}</p>
                 </div>
 
                 <form className={styles.form} onSubmit={handleSubmit}>
@@ -111,7 +123,7 @@ export default function LoginPage() {
                         className={styles.submitBtn}
                         disabled={loading}
                     >
-                        {loading ? 'Loading...' : isSignUp ? 'Create Account' : 'Sign In'}
+                        {loading ? 'Loading...' : isSignUp ? 'Create Account' : (priceId ? 'Sign In & Subscribe' : 'Sign In')}
                     </button>
                 </form>
 

@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { PlatformId } from '@/types';
+import { PlatformId, MediaAttachment } from '@/types';
 import { postTweet, refreshAccessToken, uploadMedia } from '@/lib/social/x';
 import { postToFacebookPage, postToInstagram } from '@/lib/social/meta';
 
@@ -146,7 +146,7 @@ export async function publishScheduledPosts() {
 }
 
 // Helper: Publish to Twitter with token refresh
-async function publishToTwitter(supabase: SupabaseClient, connection: DbConnection, content: string, mediaUrls: string[] = []) {
+async function publishToTwitter(supabase: SupabaseClient, connection: DbConnection, content: string, media: MediaAttachment[] = []) {
     let accessToken = connection.access_token;
 
     // Refresh if needed
@@ -166,14 +166,18 @@ async function publishToTwitter(supabase: SupabaseClient, connection: DbConnecti
     }
 
     const mediaIds: string[] = [];
-    if (mediaUrls && mediaUrls.length > 0) {
-        // Limit to 4 images
-        const attachments = mediaUrls.slice(0, 4);
+    if (media && media.length > 0) {
+        // Limit to 4 images (Twitter limit)
+        // TODO: Support video for Twitter? Currently logic uploads as images via uploadMedia? 
+        // uploadMedia in x.ts uses media/upload. If type is video, we need different logic often.
+        // For now, filter for images to prevent breaking, or just pass URLs and hope x.ts handles it.
+        // Assuming current x.ts uploadMedia handles images.
+        const attachments = media.filter(m => m.type === 'image').slice(0, 4);
 
         // Upload in parallel
-        const uploadedIds = await Promise.all(attachments.map(async (url) => {
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`Failed to fetch image: ${url}`);
+        const uploadedIds = await Promise.all(attachments.map(async (m) => {
+            const res = await fetch(m.url);
+            if (!res.ok) throw new Error(`Failed to fetch image: ${m.url}`);
             const arrayBuffer = await res.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
             // Derive mime type from url or response header, default to image/jpeg if unknown
@@ -187,23 +191,20 @@ async function publishToTwitter(supabase: SupabaseClient, connection: DbConnecti
 }
 
 // Helper: Publish to Facebook
-async function publishToFacebook(connection: DbConnection, content: string, media: string[]) {
-    // connection.platform_user_id should be the Page ID for Facebook pages type connection
-    // But `connected_accounts` might store the User ID, and we need to fetch Pages?
-    // Usually the connection stores the Page Access Token if it's a Page connection.
-    // Assuming `access_token` is the Page Access Token.
-    // If we only have User Token, we need to find the page... logic depends on how auth is stored.
-    // Assuming for MVP the token in `connected_accounts` is usable for the target destination.
-
-    // For now, assume access_token is valid page token or user token with permissions
-
-    // Wait, `postToFacebookPage` needs `pageId`. `connection.platform_user_id` should effectively be the Page ID if the user selected a page.
-    // If not, we might need extra logic to select a page.
-    await postToFacebookPage(connection.platform_user_id, connection.access_token, content, media);
+async function publishToFacebook(connection: DbConnection, content: string, media: MediaAttachment[]) {
+    // Current Facebook implementation supports Photo URLs.
+    // Filter for images.
+    const imageUrls = media.filter(m => m.type === 'image').map(m => m.url);
+    await postToFacebookPage(connection.platform_user_id, connection.access_token, content, imageUrls);
 }
 
 // Helper: Publish to Instagram
-async function publishToInstagram(connection: DbConnection, content: string, media: string[]) {
-    // Similar assumption: platform_user_id is the Instagram Business Account ID
-    await postToInstagram(connection.platform_user_id, connection.access_token, content, media && media.length > 0 ? media[0] : undefined);
+async function publishToInstagram(connection: DbConnection, content: string, media: MediaAttachment[]) {
+    // Pass full media objects to support new Video/Carousel logic
+    await postToInstagram(
+        connection.platform_user_id,
+        connection.access_token,
+        content,
+        media.map(m => ({ type: m.type, url: m.url }))
+    );
 }

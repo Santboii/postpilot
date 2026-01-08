@@ -98,9 +98,15 @@ function dbToPost(row: DbPost, platforms: DbPostPlatform[]): Post {
         pinterest: '',
         tiktok: '',
     };
+    const platformMetadata: Record<PlatformId, Record<string, unknown>> = {} as Record<PlatformId, Record<string, unknown>>;
+
     platforms.forEach(p => {
+        const pid = p.platform as PlatformId;
         if (p.custom_content) {
-            platformContent[p.platform as PlatformId] = p.custom_content;
+            platformContent[pid] = p.custom_content;
+        }
+        if (p.metadata && Object.keys(p.metadata).length > 0) {
+            platformMetadata[pid] = p.metadata;
         }
     });
 
@@ -115,8 +121,7 @@ function dbToPost(row: DbPost, platforms: DbPostPlatform[]): Post {
         updatedAt: row.updated_at,
         media: row.media || [],
         platformContent: Object.keys(platformContent).length > 0 ? platformContent : undefined,
-        // We could also map platformMetadata here if we added it to the Post interface, but for now we might just use it internally or add it if needed.
-        // The Post interface in types/db.ts might need updating if we want to expose this to the UI.
+        platformMetadata: Object.keys(platformMetadata).length > 0 ? platformMetadata : undefined,
         libraryId: row.library_id || undefined,
         isEvergreen: row.is_evergreen || false,
     };
@@ -627,13 +632,23 @@ export async function publishPost(id: string): Promise<Post> {
         try {
             const contentToPublish = post.platformContent?.tiktok || post.content;
 
+            // Prioritize platform-specific media from metadata
+            const platformMedia = post.platformMetadata?.tiktok?.media as MediaAttachment[] | undefined;
+            const mediaToUse = (platformMedia && platformMedia.length > 0) ? platformMedia : post.media;
+
+            console.log('[TikTok Publish] Media Source:', {
+                hasPlatformMedia: !!platformMedia,
+                platformMediaCount: platformMedia?.length,
+                sharedMediaCount: post.media?.length
+            });
+
             const response = await fetch('/api/publish/tiktok', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     postId: id,
                     content: contentToPublish,
-                    media: post.media,
+                    media: mediaToUse,
                 }),
             });
 
@@ -653,6 +668,40 @@ export async function publishPost(id: string): Promise<Post> {
                 error: msg
             });
             SocialLogger.error({ ...context, platform: 'tiktok' }, 'Failed to publish to TikTok', error);
+        }
+    }
+
+    // Publish to Instagram
+    if (post.platforms.includes('instagram')) {
+        try {
+            const contentToPublish = post.platformContent?.instagram || post.content;
+
+            const response = await fetch('/api/publish/instagram', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    postId: id,
+                    content: contentToPublish,
+                    media: post.media,
+                }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to publish to Instagram');
+            }
+
+            results.push({ platform: 'instagram', success: true });
+            SocialLogger.info({ ...context, platform: 'instagram' }, 'Published to Instagram');
+
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : 'Unknown error';
+            results.push({
+                platform: 'instagram',
+                success: false,
+                error: msg
+            });
+            SocialLogger.error({ ...context, platform: 'instagram' }, 'Failed to publish to Instagram', error);
         }
     }
 

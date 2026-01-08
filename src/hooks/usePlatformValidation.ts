@@ -39,16 +39,42 @@ export function hasAnyCharError(
 const PLATFORMS_REQUIRING_MEDIA: PlatformId[] = ['instagram', 'pinterest', 'tiktok'];
 
 /**
- * Check if a platform has a validation error (e.g., missing required image)
+ * Check if a platform has a validation error (e.g., missing required image, mixed media)
  */
 export function getPlatformValidationError(
     platformId: PlatformId,
-    imageCount: number
+    files: File[] | number
 ): string | null {
-    if (PLATFORMS_REQUIRING_MEDIA.includes(platformId) && imageCount === 0) {
+    const count = typeof files === 'number' ? files : files.length;
+
+    // 1. Basic Requirement Check
+    if (PLATFORMS_REQUIRING_MEDIA.includes(platformId) && count === 0) {
         const platform = PLATFORMS.find(p => p.id === platformId);
         return `${platform?.name || platformId} requires media (image/video)`;
     }
+
+    // 2. TikTok Specific Validation
+    if (platformId === 'tiktok' && Array.isArray(files)) {
+        const videos = files.filter(f => f.type.startsWith('video/'));
+        const images = files.filter(f => f.type.startsWith('image/'));
+
+        console.log('[TikTok Validation]', { count, videoCount: videos.length, imageCount: images.length, types: files.map(f => f.type) });
+
+        // Rule: Video Required (Photo Mode not yet supported by backend)
+        // [FIXED] Photo Mode backend support added. 
+        // if (videos.length === 0) { ... }
+
+        // Rule: No Mixed Media
+        if (videos.length > 0 && images.length > 0) {
+            return "TikTok does not support mixed media (video + images)";
+        }
+
+        // Rule: Single Video Limit
+        if (videos.length > 1) {
+            return "TikTok only supports one video per post";
+        }
+    }
+
     return null;
 }
 
@@ -60,6 +86,8 @@ export function getFirstPlatformError(
     imageCount: number
 ): string | null {
     for (const platformId of selectedPlatforms) {
+        // Note: This helper only checks count-based errors for now
+        // Detailed validation happens in PostComposer
         const error = getPlatformValidationError(platformId, imageCount);
         if (error) return error;
     }

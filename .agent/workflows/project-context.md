@@ -8,7 +8,7 @@ description: Context and overview for the SocialsGenie social media management a
 SocialsGenie is an AI-powered social media management web application that helps users create, schedule, and publish content across multiple social media platforms.
 
 ## Current Year
-**2025** - All dates and references should use 2025.
+**2026** - All dates and references should use 2026.
 
 ## Tech Stack
 - **Frontend**: Next.js 16 (App Router), React 19, TypeScript

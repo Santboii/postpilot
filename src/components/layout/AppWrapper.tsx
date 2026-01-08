@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
+import Spinner from '@/components/ui/Spinner';
 import Sidebar from '@/components/layout/Sidebar';
 import styles from '@/app/layout.module.css';
 
@@ -30,12 +31,7 @@ function AppContent({ children }: { children: ReactNode }) {
 
     // Show loading state
     if (loading) {
-        return (
-            <div className={styles.loading}>
-                <div className={styles.spinner}></div>
-                <p>Loading...</p>
-            </div>
-        );
+        return <Spinner fullScreen />;
     }
 
     // Show login page without sidebar

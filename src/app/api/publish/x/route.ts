@@ -84,35 +84,96 @@ export async function POST(request: NextRequest) {
         // Handle Media Attachments
         const mediaIds: string[] = [];
         if (postId) {
-            const { data: post } = await supabase
+            // Query post AND its platform-specific data
+            const { data: post, error: mediaQueryError } = await supabase
                 .from('posts')
-                .select('content, media')
+                .select('content, media, post_platforms!inner(platform, metadata)')
                 .eq('id', postId)
+                .eq('post_platforms.platform', 'twitter')
                 .single();
 
-            if (post && post.media && post.media.length > 0) {
+            console.log('[X] ====== MEDIA DEBUG START ======');
+            console.log('[X] Post ID:', postId);
+            console.log('[X] Post data:', post ? {
+                hasSharedMedia: !!post.media,
+                sharedMediaLength: post.media?.length,
+                sharedMedia: JSON.stringify(post.media),
+                platformData: JSON.stringify(post.post_platforms)
+            } : 'null');
+            console.log('[X] Query error:', mediaQueryError);
+
+            // Determine which media to use:
+            // 1. Platform-specific media from post_platforms.metadata.media (priority)
+            // 2. Fallback to shared media from posts.media
+            type PlatformRecord = { platform: string; metadata?: { media?: MediaAttachment[] } };
+            const twitterPlatform = (post?.post_platforms as PlatformRecord[] | undefined)?.find(
+                (p: PlatformRecord) => p.platform === 'twitter'
+            );
+            const platformMedia = twitterPlatform?.metadata?.media as MediaAttachment[] | undefined;
+            const sharedMedia = post?.media as MediaAttachment[] | undefined;
+
+            // Use platform-specific media if available, otherwise shared
+            const mediaToUpload = (platformMedia && platformMedia.length > 0)
+                ? platformMedia
+                : (sharedMedia || []);
+
+            console.log('[X] Platform-specific media:', platformMedia?.length || 0);
+            console.log('[X] Shared media:', sharedMedia?.length || 0);
+            console.log('[X] Using media:', mediaToUpload.length);
+
+            if (mediaToUpload.length > 0) {
                 // X allows up to 4 photos
-                const attachments = post.media.slice(0, 4);
+                const attachments = mediaToUpload.slice(0, 4);
+                console.log('[X] Processing', attachments.length, 'attachments');
 
                 // Upload in parallel
                 // Fail-fast: If any image fails, the whole post fails.
-                const uploadedIds = await Promise.all(attachments.map(async (media: MediaAttachment) => {
+                const uploadedIds = await Promise.all(attachments.map(async (media: MediaAttachment, index: number) => {
+                    console.log(`[X] Attachment ${index}:`, { url: media.url, type: media.type });
+
                     // Fetch image buffer
                     const fileRes = await fetch(media.url);
-                    if (!fileRes.ok) throw new Error(`Failed to fetch image: ${media.url}`);
+                    if (!fileRes.ok) {
+                        console.error(`[X] Failed to fetch attachment ${index}:`, fileRes.status, fileRes.statusText);
+                        throw new Error(`Failed to fetch image: ${media.url}`);
+                    }
                     const arrayBuffer = await fileRes.arrayBuffer();
                     const buffer = Buffer.from(arrayBuffer);
 
+                    // Infer MIME type from URL extension or content-type header
+                    let mimeType = fileRes.headers.get('content-type') || '';
+                    if (!mimeType || mimeType === 'application/octet-stream') {
+                        // Fallback: infer from URL extension
+                        const url = media.url.toLowerCase();
+                        if (url.includes('.png')) mimeType = 'image/png';
+                        else if (url.includes('.gif')) mimeType = 'image/gif';
+                        else if (url.includes('.webp')) mimeType = 'image/webp';
+                        else if (url.includes('.mp4')) mimeType = 'video/mp4';
+                        else if (url.includes('.mov')) mimeType = 'video/quicktime';
+                        else if (media.type === 'video') mimeType = 'video/mp4';
+                        else mimeType = 'image/jpeg'; // Default for images
+                    }
+
+                    console.log(`[X] Uploading attachment ${index}:`, { mimeType, size: buffer.length });
+
                     // Upload to X
-                    return uploadMedia(accessToken, buffer, media.type);
+                    const mediaId = await uploadMedia(accessToken, buffer, mimeType);
+                    console.log(`[X] Upload success for attachment ${index}:`, mediaId);
+                    return mediaId;
                 }));
 
                 mediaIds.push(...uploadedIds);
+                console.log('[X] All uploads complete, mediaIds:', mediaIds);
+            } else {
+                console.log('[X] No media to upload');
             }
+            console.log('[X] ====== MEDIA DEBUG END ======');
         }
 
         // Post the tweet
+        console.log('[X] Creating tweet with mediaIds:', mediaIds);
         const tweet = await postTweet(accessToken, tweetText, mediaIds);
+        console.log('[X] Tweet created:', tweet);
 
         return NextResponse.json({
             success: true,

@@ -558,10 +558,16 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                                     ? `@${username.toLowerCase().replace(/\s+/g, '')}`
                                     : (username.startsWith('@') ? username : `@${username}`);
 
-                                // Create combined image preview URLs
-                                const existingUrls = existingMedia.map(m => m.url);
-                                const newFileUrls = mediaFiles.map(f => URL.createObjectURL(f));
-                                const allImagePreviews = [...existingUrls, ...newFileUrls];
+                                // Create combined image preview objects with url and type
+                                const existingPreviews = existingMedia.map(m => ({
+                                    url: m.url,
+                                    type: m.type === 'video' ? 'video/mp4' : 'image/jpeg'
+                                }));
+                                const newFilePreviews = mediaFiles.map(f => ({
+                                    url: URL.createObjectURL(f),
+                                    type: f.type
+                                }));
+                                const allImagePreviews = [...existingPreviews, ...newFilePreviews];
 
                                 return (
                                     <React.Fragment key={platformId}>

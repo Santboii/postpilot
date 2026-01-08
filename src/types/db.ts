@@ -11,6 +11,7 @@ export interface Post {
     updatedAt: string;
     media?: MediaAttachment[];
     platformContent?: Record<PlatformId, string>;
+    platformMetadata?: Record<PlatformId, Record<string, unknown>>;
     // Evergreen / Recycling
     libraryId?: string;
     isEvergreen?: boolean;
@@ -59,4 +60,57 @@ export interface BrandProfile {
     examples: string[];
     created_at: string;
     updated_at: string;
+}
+
+// Stripe / Billing Types
+export type PricingType = 'one_time' | 'recurring';
+export type PricingPlanInterval = 'day' | 'week' | 'month' | 'year';
+export type SubscriptionStatus = 'trialing' | 'active' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'past_due' | 'unpaid' | 'paused';
+
+export interface Product {
+    id: string;
+    active: boolean;
+    name: string;
+    description?: string;
+    image?: string;
+    metadata?: Record<string, string>;
+}
+
+export interface Price {
+    id: string;
+    product_id: string;
+    active: boolean;
+    description?: string;
+    unit_amount: number;
+    currency: string;
+    type: PricingType;
+    interval?: PricingPlanInterval;
+    interval_count?: number;
+    trial_period_days?: number;
+    metadata?: Record<string, string>;
+    products?: Product; // Joined view
+}
+
+export interface Subscription {
+    id: string;
+    user_id: string;
+    status: SubscriptionStatus;
+    metadata?: Record<string, string>;
+    price_id: string;
+    quantity: number;
+    cancel_at_period_end: boolean;
+    created: string;
+    current_period_start: string;
+    current_period_end: string;
+    ended_at?: string;
+    cancel_at?: string;
+    canceled_at?: string;
+    trial_start?: string;
+    trial_end?: string;
+    prices?: Price; // Joined view
+}
+
+export interface Customer {
+    id: string;
+    stripe_customer_id: string;
 }

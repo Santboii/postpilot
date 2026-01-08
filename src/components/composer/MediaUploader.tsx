@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { MediaAttachment } from '@/types';
 import styles from './Composer.module.css'; // We'll share the styles for now to avoid breaking CSS
+import MediaCarouselModal from '@/components/ui/MediaCarouselModal';
 
 interface MediaUploaderProps {
     files: File[];
@@ -39,7 +40,7 @@ export default function MediaUploader({
     const [error, setError] = useState<string | null>(null);
 
     // Preview Image State (for full screen)
-    const [previewImage, setPreviewImage] = useState<string | null>(null);
+    const [previewIndex, setPreviewIndex] = useState<number>(-1);
 
     // Sync previews with files
     useEffect(() => {
@@ -66,14 +67,8 @@ export default function MediaUploader({
 
         // Global hard limit check (10)
         if (newCount > 10) {
-            alert(`Cannot upload more than 10 images total`); // Simple alert for now or lift error state
+            alert(`Cannot upload more than 10 items total`);
             return;
-        }
-
-        // Platform limit check
-        if (newCount > maxMedia) {
-            // We'll allow it but maybe trigger a warning in parent?
-            // For now, let's just allow it, parent shows validation error.
         }
 
         onFilesChange([...files, ...imageFiles]);
@@ -171,6 +166,16 @@ export default function MediaUploader({
     };
 
     const totalMediaCount = existingMedia.length + files.length;
+
+    // Combine all media for preview
+    const allPreviews = [
+        ...existingMedia.map(m => ({ url: m.url, type: m.type, alt: m.altText })),
+        ...imagePreviews.map((url, i) => ({
+            url,
+            type: files[i]?.type?.startsWith('video/') ? 'video' : 'image',
+            alt: files[i]?.name
+        }))
+    ];
 
     return (
         <>
@@ -316,18 +321,27 @@ export default function MediaUploader({
                 ) : (
                     <div className={styles.imagePreviewGrid}>
                         {/* Existing Media Previews */}
-                        {existingMedia.map((media) => (
+                        {existingMedia.map((media, idx) => (
                             <div key={media.id} className={styles.imagePreviewItem}>
                                 {media.type === 'video' ? (
-                                    <video
-                                        src={media.url}
-                                        className={styles.mediaPreview}
+                                    <div
+                                        className="relative w-full h-full cursor-pointer group"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            setPreviewImage(media.url);
+                                            setPreviewIndex(idx);
                                         }}
-                                        style={{ cursor: 'pointer' }}
-                                    />
+                                    >
+                                        <video
+                                            src={media.url}
+                                            className={`${styles.mediaPreview} object-cover w-full h-full`}
+                                            muted
+                                            playsInline
+                                            preload="metadata"
+                                        />
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
+                                            <span className="text-white text-2xl drop-shadow-md">▶️</span>
+                                        </div>
+                                    </div>
                                 ) : (
                                     <div className="relative w-full h-full">
                                         <Image
@@ -335,7 +349,7 @@ export default function MediaUploader({
                                             alt={media.altText || 'Existing media'}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                setPreviewImage(media.url);
+                                                setPreviewIndex(idx);
                                             }}
                                             fill
                                             className="object-cover"
@@ -358,46 +372,60 @@ export default function MediaUploader({
                         ))}
 
                         {/* New File Previews */}
-                        {imagePreviews.map((preview, index) => (
-                            <div key={`new-${index}`} className={styles.imagePreviewItem}>
-                                {files[index]?.type.startsWith('video/') ? (
-                                    <video
-                                        src={preview}
-                                        className={styles.mediaPreview}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setPreviewImage(preview);
-                                        }}
-                                        style={{ cursor: 'pointer' }}
-                                    />
-                                ) : (
-                                    <div className="relative w-full h-full">
-                                        <Image
-                                            src={preview}
-                                            alt={`Preview ${index + 1}`}
+                        {imagePreviews.map((preview, index) => {
+                            const isVideo = files[index]?.type.startsWith('video/');
+                            // Calculate global index: existing count + current index
+                            const globalIndex = existingMedia.length + index;
+
+                            return (
+                                <div key={`new-${index}`} className={styles.imagePreviewItem}>
+                                    {isVideo ? (
+                                        <div
+                                            className="relative w-full h-full cursor-pointer group"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                setPreviewImage(preview);
+                                                setPreviewIndex(globalIndex);
                                             }}
-                                            fill
-                                            className="object-cover"
-                                            style={{ cursor: 'pointer' }}
-                                            unoptimized
-                                        />
-                                    </div>
-                                )}
-                                <button
-                                    type="button"
-                                    className={styles.removeImageBtn}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeImage(index);
-                                    }}
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        ))}
+                                        >
+                                            <video
+                                                src={preview}
+                                                className={`${styles.mediaPreview} object-cover w-full h-full`}
+                                                muted
+                                                playsInline
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
+                                                <span className="text-white text-2xl drop-shadow-md">▶️</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="relative w-full h-full">
+                                            <Image
+                                                src={preview}
+                                                alt={`Preview ${index + 1}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPreviewIndex(globalIndex);
+                                                }}
+                                                fill
+                                                className="object-cover"
+                                                style={{ cursor: 'pointer' }}
+                                                unoptimized
+                                            />
+                                        </div>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className={styles.removeImageBtn}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            removeImage(index);
+                                        }}
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            );
+                        })}
 
                         {totalMediaCount < 10 && (
                             <div className={styles.addMoreImages} onClick={() => !disabled && fileInputRef.current?.click()}>
@@ -409,40 +437,12 @@ export default function MediaUploader({
             </div>
 
             {/* Full Screen Preview */}
-            {previewImage && (
-                typeof document !== 'undefined' ? createPortal(
-                    <div
-                        className={styles.imageModalOverlay}
-                        onClick={() => setPreviewImage(null)}
-                    >
-                        <div
-                            className={styles.imageModalContent}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <button
-                                className={styles.closeModalBtn}
-                                onClick={() => setPreviewImage(null)}
-                            >
-                                ✕
-                            </button>
-                            {previewImage.endsWith('.mp4') || previewImage.startsWith('blob:') && files.find(f => f.name === previewImage || URL.createObjectURL(f) === previewImage)?.type.startsWith('video/') ? (
-                                <video src={previewImage} controls autoPlay className={styles.fullSizeMedia} />
-                            ) : (
-                                <div className="relative w-full h-full">
-                                    <Image
-                                        src={previewImage}
-                                        alt="Full size preview"
-                                        fill
-                                        className="object-contain"
-                                        unoptimized
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    </div>,
-                    document.body
-                ) : null
-            )}
+            <MediaCarouselModal
+                isOpen={previewIndex >= 0}
+                onClose={() => setPreviewIndex(-1)}
+                mediaItems={allPreviews}
+                initialIndex={previewIndex}
+            />
         </>
     );
 }

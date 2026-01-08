@@ -157,15 +157,33 @@ graph TD
 - **Analytics**: Adding a dedicated analytics service/dashboard to track post performance.
 - **Teams**: Upgrading data model to support multi-user organizations/teams.
 
-## 10. Project Identification
+## 10. Platform Integration Documentation
+
+Detailed platform-specific implementation guides are in `docs/platforms/`:
+
+| Platform | Documentation | Status |
+|----------|--------------|--------|
+| X (Twitter) | `docs/platforms/x-twitter.md` | ✅ Complete |
+| LinkedIn | `docs/platforms/linkedin.md` | ✅ Complete |
+| Meta (FB/IG) | `docs/platforms/meta.md` | ✅ Complete |
+| TikTok | `docs/platforms/tiktok.md` | ✅ Complete |
+| Bluesky | `docs/platforms/bluesky.md` | ✅ Complete |
+| Pinterest | `docs/platforms/pinterest.md` | ✅ Complete |
+
+Additional resources:
+- **Troubleshooting**: `docs/TROUBLESHOOTING.md`
+- **API Quick Reference**: `docs/API-QUICK-REFERENCE.md`
+- **Debug Workflow**: `.agent/workflows/debug-publishing.md`
+
+## 11. Project Identification
 
 **Project Name**: SocialsGenie (Social Media Copilot)
 
 **Primary Contact/Team**: [User Name] / Antigravity Agent
 
-**Date of Last Update**: 2025-12-27
+**Date of Last Update**: 2026-01-06
 
-## 11. Glossary / Acronyms
+## 12. Glossary / Acronyms
 
 - **RLS**: Row Level Security (Postgres security feature).
 - **SSR**: Server-Side Rendering.

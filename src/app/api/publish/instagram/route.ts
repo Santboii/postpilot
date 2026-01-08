@@ -4,7 +4,7 @@ import { postToInstagram } from '@/lib/social/meta';
 
 export async function POST(request: NextRequest) {
     try {
-        const { postId, content, imageUrl } = await request.json();
+        const { postId, content, imageUrl, media } = await request.json();
 
         if (!content) {
             return NextResponse.json(
@@ -13,9 +13,21 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (!imageUrl) {
+        // Support both legacy imageUrl and new media array
+        let mediaItems: { type: 'image' | 'video'; url: string }[] = [];
+
+        if (media && Array.isArray(media) && media.length > 0) {
+            mediaItems = media.map((m: any) => ({
+                type: m.type === 'video' ? 'video' : 'image',
+                url: m.url
+            }));
+        } else if (imageUrl) {
+            mediaItems = [{ type: 'image', url: imageUrl }];
+        }
+
+        if (mediaItems.length === 0) {
             return NextResponse.json(
-                { error: 'Instagram requires an image URL. Text-only posts are not supported.' },
+                { error: 'Instagram requires media (image or video). Text-only posts are not supported.' },
                 { status: 400 }
             );
         }
@@ -61,7 +73,7 @@ export async function POST(request: NextRequest) {
             connection.platform_user_id,
             connection.access_token,
             content,
-            imageUrl
+            mediaItems
         );
 
         // Update post status if postId provided

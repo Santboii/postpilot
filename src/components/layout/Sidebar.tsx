@@ -1,7 +1,10 @@
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import styles from './Sidebar.module.css';
+import { createClient } from '@/lib/supabase';
+import { Subscription } from '@/types/db';
 
 import { LayoutDashboard, PenSquare, FileText, Settings, Repeat, Library, ChevronLeft, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
@@ -29,6 +32,22 @@ const staticNavItems: NavItem[] = [
 export default function Sidebar({ isCollapsed, toggleSidebar }: SidebarProps) {
     const pathname = usePathname();
     const { user, signOut } = useAuth();
+    const [subscription, setSubscription] = useState<Subscription | null>(null);
+    const supabase = createClient();
+
+    useEffect(() => {
+        const getSubscription = async () => {
+            if (!user) return;
+            const { data } = await supabase
+                .from('subscriptions')
+                .select('*, prices(*, products(*))')
+                .in('status', ['trialing', 'active'])
+                .eq('user_id', user.id)
+                .maybeSingle();
+            setSubscription(data);
+        };
+        getSubscription();
+    }, [user, supabase]);
 
     const navItems: NavItem[] = [
         ...staticNavItems,
@@ -41,6 +60,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar }: SidebarProps) {
 
     const userInitial = user?.email?.charAt(0).toUpperCase() || 'U';
     const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'User';
+    const planName = subscription?.prices?.products?.name || 'Free';
 
     return (
         <aside className={`${styles.sidebar} ${isCollapsed ? styles.collapsed : ''}`}>
@@ -95,7 +115,12 @@ export default function Sidebar({ isCollapsed, toggleSidebar }: SidebarProps) {
                 <div className={styles.userSection} title={displayName}>
                     <div className={styles.avatar}>{userInitial}</div>
                     <div className={styles.userInfo}>
-                        <span className={styles.userName}>{displayName}</span>
+                        <div className={styles.userHeader}>
+                            <span className={styles.userName}>{displayName}</span>
+                            <span className={`${styles.planBadge} ${styles[planName.toLowerCase().split(' ')[0]]}`}>
+                                {planName}
+                            </span>
+                        </div>
                         <button className={styles.logoutBtn} onClick={handleLogout}>
                             Sign Out
                         </button>

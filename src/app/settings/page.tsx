@@ -135,22 +135,26 @@ export default function SettingsPage() {
         fetchUser();
     }, []);
 
-    // Check for OAuth callback messages
+    // Check for OAuth callback messages (runs once on mount if params exist)
     useEffect(() => {
         const success = searchParams.get('success');
         const error = searchParams.get('error');
 
-        if (success) {
-            setMessage({ type: 'success', text: success });
-            if (searchParams.get('connected') === 'true') {
-                invalidateConnections();
+        if (success || error) {
+            // Clear URL first to prevent re-running on subsequent renders
+            window.history.replaceState({}, '', '/settings');
+
+            if (success) {
+                setMessage({ type: 'success', text: success });
+                if (searchParams.get('connected') === 'true') {
+                    invalidateConnections();
+                }
+            } else if (error) {
+                setMessage({ type: 'error', text: error });
             }
-            window.history.replaceState({}, '', '/settings');
-        } else if (error) {
-            setMessage({ type: 'error', text: error });
-            window.history.replaceState({}, '', '/settings');
         }
-    }, [searchParams, invalidateConnections]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Run only on mount - searchParams are read once
 
     const getConnection = (platformId: PlatformId) => {
         return connections.find(c => c.platform === platformId);
@@ -359,6 +363,31 @@ export default function SettingsPage() {
                                         <span>Choose your preferred color mode</span>
                                     </div>
                                     <ThemeToggle />
+                                </div>
+                            </div>
+
+                            {/* Billing Section */}
+                            <div className={styles.accountSection}>
+                                <div className={styles.settingRow}>
+                                    <div className={styles.settingLabel}>
+                                        <strong>Subscription</strong>
+                                        <span>Manage your plan and billing details</span>
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                const res = await fetch('/api/portal', { method: 'POST' });
+                                                const data = await res.json();
+                                                if (data.url) window.location.href = data.url;
+                                                else throw new Error('Failed to create portal session');
+                                            } catch (e) {
+                                                setMessage({ type: 'error', text: 'Failed to open billing portal' });
+                                            }
+                                        }}
+                                        className={styles.connectBtn} // Reusing connectBtn style for consistency
+                                    >
+                                        Manage Subscription
+                                    </button>
                                 </div>
                             </div>
 

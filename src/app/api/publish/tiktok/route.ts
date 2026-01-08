@@ -16,10 +16,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // 2. Validate Media (Video required)
+        // 2. Validate Media
+        console.log('[TikTok API] Received payload:', { content, mediaCount: media?.length, mediaTypes: media?.map((m: any) => m.type) });
+
         const videoMedia = media?.find((m: MediaAttachment) => m.type === 'video');
-        if (!videoMedia || !videoMedia.url) {
-            return NextResponse.json({ error: 'Video is required for TikTok' }, { status: 400 });
+        const imageMedia = media?.filter((m: MediaAttachment) => m.type === 'image');
+
+        // Mixed media check (Backend enforcement)
+        if (videoMedia && imageMedia?.length > 0) {
+            return NextResponse.json({ error: 'TikTok does not support mixed known media types (Video + Image)' }, { status: 400 });
+        }
+
+        if (!videoMedia && (!imageMedia || imageMedia.length === 0)) {
+            return NextResponse.json({ error: 'Media (Video or Image) is required for TikTok' }, { status: 400 });
         }
 
         // 3. Get Access Token
@@ -60,17 +69,25 @@ export async function POST(request: Request) {
             }
         }
 
-        // 5. Download Video File
-        const videoResponse = await fetch(videoMedia.url);
-        if (!videoResponse.ok) {
-            return NextResponse.json({ error: 'Failed to download video file' }, { status: 500 });
-        }
-        const videoArrayBuffer = await videoResponse.arrayBuffer();
-        const videoBuffer = Buffer.from(videoArrayBuffer);
+        // 5. Publish Content
+        if (videoMedia) {
+            // --- VIDEO UPLOAD FLOW ---
+            const videoResponse = await fetch(videoMedia.url);
+            if (!videoResponse.ok) {
+                return NextResponse.json({ error: 'Failed to download video file' }, { status: 500 });
+            }
+            const videoArrayBuffer = await videoResponse.arrayBuffer();
+            const videoBuffer = Buffer.from(videoArrayBuffer);
 
-        // 6. Post to TikTok
-        // TikTok caption limits are strict, content is used as title/caption
-        await postVideo(accessToken, videoBuffer, content || '');
+            await postVideo(accessToken, videoBuffer, content || '');
+        } else {
+            // --- PHOTO MODE FLOW ---
+            // Import dynamically or ensure it is exported from lib
+            const { postPhotos } = await import('@/lib/social/tiktok'); // Dynamic import to ensure latest version
+            const imageUrls = imageMedia.map((m: MediaAttachment) => m.url);
+
+            await postPhotos(accessToken, imageUrls, content || '');
+        }
 
         return NextResponse.json({ success: true });
 

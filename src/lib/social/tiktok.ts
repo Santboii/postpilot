@@ -339,3 +339,66 @@ export async function postVideo(
 
     return { publish_id: 'pending_processing' };
 }
+
+/**
+ * Post photos to TikTok (Photo Mode)
+ * Uses PULL_FROM_URL for simplicity with Supabase public URLs
+ */
+export async function postPhotos(
+    accessToken: string,
+    imageUrls: string[],
+    title: string,
+    privacyLevel: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY' = 'PUBLIC_TO_EVERYONE'
+): Promise<{ publish_id: string }> {
+
+    if (imageUrls.length === 0) {
+        throw new Error('At least one image is required for Photo Mode');
+    }
+
+    // 1. Initialize Upload (Photo Mode)
+    // Endpoint: /v2/post/publish/content/init/
+    // Docs: https://developers.tiktok.com/doc/content-posting-api-reference-photo-post/
+    const postInfo = {
+        post_info: {
+            title: title, // TikTok uses title as the caption/description for photo mode often
+            description: title, // Redundant but safe
+            privacy_level: privacyLevel,
+            disable_duet: false,
+            disable_comment: false,
+            disable_stitch: false,
+        },
+        source_info: {
+            source: 'PULL_FROM_URL',
+            photo_cover_index: 1, // Default to first image as cover
+            photo_images: imageUrls
+        },
+        post_mode: 'MEDIA_UPLOAD',
+        media_type: 'PHOTO'
+    };
+
+    const response = await fetch(`${API_BASE}/post/publish/content/init/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(postInfo),
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        console.error('TikTok photo publish error:', error);
+        throw new Error(`Failed to publish photos: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json();
+    const publishId = data?.data?.publish_id;
+
+    if (!publishId) {
+        console.error('TikTok photo publish response missing ID:', data);
+        throw new Error('Failed to get publish_id from TikTok');
+    }
+
+    console.log('[TikTok] Photos published successfully, ID:', publishId);
+    return { publish_id: publishId };
+}

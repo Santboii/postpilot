@@ -252,51 +252,117 @@ export async function postToFacebookPage(
 /**
  * Post to Instagram (via linked Facebook Page)
  * 
- * Instagram posting is a 2-step process:
- * 1. Create a media container
+ * Instagram posting is a multi-step process:
+ * 1. Create a media container (Image, Reel, or Carousel)
  * 2. Publish the container
  */
 export async function postToInstagram(
     instagramAccountId: string,
     pageAccessToken: string,
     caption: string,
-    imageUrl?: string
+    mediaItems: { type: 'image' | 'video'; url: string }[]
 ): Promise<{ id: string }> {
-    // For text-only posts, we need an image URL
-    // Instagram requires media for all posts
-    if (!imageUrl) {
-        throw new Error('Instagram requires an image for posts');
+    if (!mediaItems || mediaItems.length === 0) {
+        throw new Error('Instagram requires media for posts');
     }
 
-    // Step 1: Create media container
-    const containerResponse = await fetch(
-        `${GRAPH_API_BASE}/${instagramAccountId}/media`,
-        {
+    let creationId: string;
+
+    // CASE 1: Single Image
+    if (mediaItems.length === 1 && mediaItems[0].type === 'image') {
+        const response = await fetch(`${GRAPH_API_BASE}/${instagramAccountId}/media`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                image_url: imageUrl,
+                image_url: mediaItems[0].url,
                 caption,
                 access_token: pageAccessToken,
             }),
-        }
-    );
+        });
 
-    if (!containerResponse.ok) {
-        const error = await containerResponse.json();
-        throw new Error(error.error?.message || 'Failed to create Instagram media container');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || 'Failed to create Instagram image container');
+        creationId = data.id;
+    }
+    // CASE 2: Single Video (Reel)
+    else if (mediaItems.length === 1 && mediaItems[0].type === 'video') {
+        const response = await fetch(`${GRAPH_API_BASE}/${instagramAccountId}/media`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                media_type: 'REELS',
+                video_url: mediaItems[0].url,
+                caption,
+                access_token: pageAccessToken,
+            }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || 'Failed to create Instagram video container');
+        creationId = data.id;
+
+        // Video containers need time to process before they can be published
+        // We need to poll the status
+        await waitForMediaProcessing(creationId, pageAccessToken);
+    }
+    // CASE 3: Carousel (Mixed Media)
+    else {
+        // Step 3.1: Create item containers for each media (without caption)
+        const childIds = await Promise.all(mediaItems.map(async (item) => {
+            const body: any = {
+                is_carousel_item: true,
+                access_token: pageAccessToken,
+            };
+
+            if (item.type === 'video') {
+                body.media_type = 'VIDEO'; // 'VIDEO' is used for carousel items, 'REELS' for single video posts
+                body.video_url = item.url;
+            } else {
+                body.image_url = item.url;
+            }
+
+            const response = await fetch(`${GRAPH_API_BASE}/${instagramAccountId}/media`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error?.message || `Failed to create carousel item (${item.type})`);
+
+            // Wait for videos in carousel to process too
+            if (item.type === 'video') {
+                await waitForMediaProcessing(data.id, pageAccessToken);
+            }
+
+            return data.id;
+        }));
+
+        // Step 3.2: Create carousel container
+        const response = await fetch(`${GRAPH_API_BASE}/${instagramAccountId}/media`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                media_type: 'CAROUSEL',
+                children: childIds,
+                caption,
+                access_token: pageAccessToken,
+            }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || 'Failed to create carousel container');
+        creationId = data.id;
     }
 
-    const container = await containerResponse.json();
-
-    // Step 2: Publish the container
+    // Step 4: Publish the container
     const publishResponse = await fetch(
         `${GRAPH_API_BASE}/${instagramAccountId}/media_publish`,
         {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                creation_id: container.id,
+                creation_id: creationId,
                 access_token: pageAccessToken,
             }),
         }
@@ -308,4 +374,32 @@ export async function postToInstagram(
     }
 
     return publishResponse.json();
+}
+
+/**
+ * Polls the status of a media container until it is ready to be published.
+ * Required for Videos and Carousel items.
+ */
+async function waitForMediaProcessing(mediaId: string, accessToken: string, maxAttempts = 20): Promise<void> {
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    for (let i = 0; i < maxAttempts; i++) {
+        const response = await fetch(
+            `${GRAPH_API_BASE}/${mediaId}?fields=status_code&access_token=${accessToken}`
+        );
+        const data = await response.json();
+
+        if (data.status_code === 'FINISHED') {
+            return;
+        }
+
+        if (data.status_code === 'ERROR') {
+            throw new Error('Instagram media processing failed');
+        }
+
+        // Wait 2 seconds before next check
+        await delay(2000);
+    }
+
+    throw new Error('Instagram media processing timed out');
 }

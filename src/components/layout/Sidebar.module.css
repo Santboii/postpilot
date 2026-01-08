@@ -232,17 +232,50 @@
     box-shadow: var(--shadow-sm);
 }
 
+.userHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.125rem;
+}
+
+.planBadge {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--radius-full);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.planBadge.free {
+    background-color: var(--surface-hover);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.planBadge.basic {
+    background-color: rgb(236, 253, 245);
+    color: rgb(5, 150, 105);
+    border: 1px solid rgb(167, 243, 208);
+}
+
+.planBadge.pro {
+    background-color: rgb(245, 243, 255);
+    color: rgb(124, 58, 237);
+    border: 1px solid rgb(221, 214, 254);
+}
+
+/* User Info specific adjustments */
 .userInfo {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    flex: 1;
-    min-width: 0;
+    overflow: hidden;
 }
 
 .userName {
-    font-size: var(--text-sm);
     font-weight: 500;
+    font-size: 0.875rem;
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;

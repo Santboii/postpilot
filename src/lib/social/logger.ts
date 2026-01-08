@@ -1,6 +1,6 @@
 
 
-export type LogPlatform = 'bluesky' | 'linkedin' | 'twitter' | 'facebook' | 'pinterest' | 'tiktok' | 'system';
+export type LogPlatform = 'bluesky' | 'linkedin' | 'twitter' | 'facebook' | 'pinterest' | 'tiktok' | 'instagram' | 'system';
 
 export interface LogContext {
     platform: LogPlatform;

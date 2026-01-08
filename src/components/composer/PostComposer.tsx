@@ -25,6 +25,8 @@ interface PinterestBoard {
     privacy: 'PUBLIC' | 'PROTECTED' | 'SECRET';
 }
 
+import MediaCarouselModal from '@/components/ui/MediaCarouselModal';
+
 type ContentMode = 'shared' | PlatformId;
 
 export default function PostComposer() {
@@ -92,8 +94,8 @@ export default function PostComposer() {
 
     // Image upload
     const [selectedImages, setSelectedImages] = useState<File[]>([]);
-    const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-    const [previewImage, setPreviewImage] = useState<string | null>(null);
+    const [imagePreviews, setImagePreviews] = useState<{ url: string; type: string }[]>([]);
+    const [previewIndex, setPreviewIndex] = useState<number>(-1);
 
     // Preview section scroll tracking
     const previewSectionRef = useRef<HTMLDivElement>(null);
@@ -109,9 +111,12 @@ export default function PostComposer() {
 
     // Sync previews for Live Preview section
     useEffect(() => {
-        const newPreviews = selectedImages.map(file => URL.createObjectURL(file));
+        const newPreviews = selectedImages.map(file => ({
+            url: URL.createObjectURL(file),
+            type: file.type
+        }));
         setImagePreviews(newPreviews);
-        return () => newPreviews.forEach(url => URL.revokeObjectURL(url));
+        return () => newPreviews.forEach(p => URL.revokeObjectURL(p.url));
     }, [selectedImages]);
 
     // Handle initial params from AI Composer (Legacy support for external redirects if any)
@@ -520,7 +525,7 @@ export default function PostComposer() {
             const customImages = platformImages[platformId];
             const effectiveImages = customImages !== undefined ? customImages : selectedImages;
 
-            const imageError = getPlatformValidationError(platformId, effectiveImages.length);
+            const imageError = getPlatformValidationError(platformId, effectiveImages);
             if (imageError) {
                 errors.push(imageError);
             }
@@ -538,14 +543,14 @@ export default function PostComposer() {
     const validationErrors = getValidationErrors();
     const isSaveDisabled = validationErrors.length > 0 || isSubmitting;
 
-    const uploadImages = async (): Promise<MediaAttachment[]> => {
-
-        if (selectedImages.length === 0) return [];
+    // Helper to upload a list of files
+    const uploadFiles = async (files: File[], context: string): Promise<MediaAttachment[]> => {
+        if (files.length === 0) return [];
 
         const supabase = getSupabase();
-        const uploadedMedia: MediaAttachment[] = [];
+        const uploaded: MediaAttachment[] = [];
 
-        for (const file of selectedImages) {
+        for (const file of files) {
             const fileExt = file.name.split('.').pop();
             const fileName = `${generateId()}.${fileExt}`;
             const filePath = `${fileName}`;
@@ -555,8 +560,8 @@ export default function PostComposer() {
                 .upload(filePath, file);
 
             if (uploadError) {
-                console.error('Error uploading image:', uploadError);
-                throw new Error(`Failed to upload image: ${file.name}`);
+                console.error(`[${context}] Error uploading file:`, uploadError);
+                throw new Error(`Failed to upload ${file.name}`);
             }
 
             const { data: { publicUrl } } = supabase.storage
@@ -564,25 +569,55 @@ export default function PostComposer() {
                 .getPublicUrl(filePath);
 
             const isVideo = file.type.startsWith('video/');
-            uploadedMedia.push({
+            console.log(`[${context}] Processed file:`, { name: file.name, type: file.type, isVideo });
+
+            uploaded.push({
                 id: generateId(),
                 type: isVideo ? 'video' : 'image',
                 url: publicUrl,
                 altText: file.name,
             });
         }
-        return uploadedMedia;
+        return uploaded;
     };
 
     const handleSubmit = async (targetStatus: 'draft' | 'scheduled' | 'published' = 'draft') => {
+        // Run full validation before submitting
+        const errors = getValidationErrors();
+        if (errors.length > 0) {
+            alert(`Please fix validation errors:\n${errors.join('\n')}`);
+            return;
+        }
+
         if (!hasValidContent()) return;
 
         setIsSubmitting(true);
-        setIsSubmitting(true);
 
         try {
-            // Upload images first
-            const uploadedMedia = await uploadImages();
+            // 1. Upload Shared Images
+            console.log('[Composer] ====== UPLOAD DEBUG START ======');
+            console.log('[Composer] selectedImages count:', selectedImages.length);
+            console.log('[Composer] selectedImages:', selectedImages.map(f => ({ name: f.name, size: f.size, type: f.type })));
+            console.log('[Composer] Uploading shared media...');
+            const uploadedSharedMedia = await uploadFiles(selectedImages, 'Shared');
+            console.log('[Composer] Uploaded shared media:', JSON.stringify(uploadedSharedMedia));
+
+            // 2. Upload Platform-Specific Images (if any)
+            const updatedPlatformMetadata = { ...platformMetadata };
+
+            for (const platformId of selectedPlatforms) {
+                const customFiles = platformImages[platformId];
+                if (customFiles && customFiles.length > 0) {
+                    console.log(`[Composer] Uploading custom media for ${platformId}...`);
+                    const uploadedCustomMedia = await uploadFiles(customFiles, platformId);
+
+                    // Store in metadata
+                    updatedPlatformMetadata[platformId] = {
+                        ...updatedPlatformMetadata[platformId] || {},
+                        media: uploadedCustomMedia
+                    };
+                }
+            }
 
             // Logic:
             // 1. If 'published', create as 'published' (if DB supports invalidating) or 'draft' then publish?
@@ -604,16 +639,23 @@ export default function PostComposer() {
                 ? getScheduledDateTime()
                 : undefined;
 
+            console.log('[Composer] Creating post with media:', {
+                mediaCount: uploadedSharedMedia.length,
+                media: JSON.stringify(uploadedSharedMedia)
+            });
+
             const post = await createPost({
                 content: sharedContent,
                 platforms: selectedPlatforms,
                 status: initialStatus,
                 scheduledAt,
                 platformContent: platformContent as Record<PlatformId, string>,
-                platformMetadata,
-                media: uploadedMedia,
+                platformMetadata: updatedPlatformMetadata,
+                media: uploadedSharedMedia,
                 libraryId: postMode === 'library' ? selectedLibraryId : undefined,
             });
+            console.log('[Composer] Post created, ID:', post.id);
+            console.log('[Composer] ====== UPLOAD DEBUG END ======');
 
             if (targetStatus === 'published' && postMode !== 'library') {
                 // Trigger immediate publish (only for schedule mode, not library mode)
@@ -1054,6 +1096,9 @@ export default function PostComposer() {
                                     const customImages = platformImages[platformId];
                                     const effectiveImages = customImages !== undefined ? customImages : selectedImages;
 
+                                    // Run validation for this platform
+                                    const validationError = getPlatformValidationError(platformId, effectiveImages);
+
                                     return (
                                         <React.Fragment key={platformId}>
                                             <PreviewCard
@@ -1065,8 +1110,13 @@ export default function PostComposer() {
                                                 isCustom={isCustom}
                                                 imageCount={effectiveImages.length}
                                                 imagePreviews={imagePreviews}
+                                                files={effectiveImages}
+                                                validationError={validationError}
                                                 onClick={() => initializePlatformContent(platformId)}
-                                                onImageClick={(preview) => setPreviewImage(preview)}
+                                                onImageClick={(preview) => {
+                                                    const idx = imagePreviews.findIndex(p => p.url === preview.url);
+                                                    if (idx !== -1) setPreviewIndex(idx);
+                                                }}
                                             />
                                         </React.Fragment>
                                     );
@@ -1089,35 +1139,12 @@ export default function PostComposer() {
                 }
             </div >
             {/* Full Screen Image Preview Modal */}
-            {
-                previewImage && (
-                    <div
-                        className={styles.imageModalOverlay}
-                        onClick={() => setPreviewImage(null)}
-                    >
-                        <div
-                            className={styles.imageModalContent}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <button
-                                className={styles.closeModalBtn}
-                                onClick={() => setPreviewImage(null)}
-                            >
-                                ✕
-                            </button>
-                            <Image
-                                src={previewImage}
-                                alt="Full size preview"
-                                className="object-contain w-full h-full"
-                                width={1200}
-                                height={800}
-                                style={{ width: '100%', height: '100%' }}
-                                unoptimized
-                            />
-                        </div>
-                    </div>
-                )
-            }
+            <MediaCarouselModal
+                isOpen={previewIndex >= 0}
+                onClose={() => setPreviewIndex(-1)}
+                mediaItems={imagePreviews}
+                initialIndex={previewIndex}
+            />
             {/* Confirmation Modal */}
             <ConfirmModal
                 isOpen={showCancelConfirmation}
