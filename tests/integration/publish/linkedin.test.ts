@@ -39,7 +39,7 @@ describe('LinkedIn Publishing', () => {
         // 2. Upload Binary
         const uploadCall = mockFetch.mock.calls.find(call => call[0].includes('dms-uploads'));
         expect(uploadCall).toBeDefined();
-        const [uploadUrl, uploadOpts] = uploadCall as [string, RequestInit];
+        const [, uploadOpts] = uploadCall as [string, RequestInit];
         expect(uploadOpts.method).toBe('PUT');
 
         // 3. Create Post

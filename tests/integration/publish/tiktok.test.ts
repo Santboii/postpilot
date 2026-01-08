@@ -19,7 +19,7 @@ describe('TikTok Publishing', () => {
 
             const buffer = Buffer.from('video-data');
 
-            const result = await postVideo(
+            await postVideo(
                 'test-token',
                 buffer,
                 'Test Video',
@@ -33,7 +33,7 @@ describe('TikTok Publishing', () => {
             // Verify Upload Call
             const uploadCall = mockFetch.mock.calls.find(call => call[0].includes('tiktok.com/test'));
             expect(uploadCall).toBeDefined();
-            const [url, options] = uploadCall as [string, RequestInit];
+            const [, options] = uploadCall as [string, RequestInit];
             expect(options.method).toBe('PUT');
         });
     });

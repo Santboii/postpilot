@@ -70,7 +70,7 @@ export function createMockSupabaseClient() {
  * Mock fetch responses for X API
  */
 export function mockXApiResponses() {
-    return vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+    return vi.fn().mockImplementation((url: string) => {
         const urlString = url.toString();
 
         // Mock media upload
@@ -138,7 +138,7 @@ export function mockLinkedInApiResponses() {
  * Mock Meta (FB/IG) API Responses
  */
 export function mockMetaApiResponses() {
-    return vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+    return vi.fn().mockImplementation((url: string) => {
         const urlString = url.toString();
 
         // Facebook Feed
@@ -230,7 +230,7 @@ export function mockTikTokApiResponses() {
  * Mock Bluesky API Responses
  */
 export function mockBlueskyApiResponses() {
-    return vi.fn().mockImplementation((url: string | Request, options?: RequestInit) => {
+    return vi.fn().mockImplementation((url: string | Request) => {
         const urlString = url.toString();
 
         // PDS Resolution (simple GET)
@@ -272,7 +272,7 @@ export function mockBlueskyApiResponses() {
  * Mock Pinterest API Responses
  */
 export function mockPinterestApiResponses() {
-    return vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+    return vi.fn().mockImplementation((url: string) => {
         const urlString = url.toString();
 
         // Boards

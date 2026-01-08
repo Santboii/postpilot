@@ -71,10 +71,11 @@ export async function POST(req: NextRequest) {
 
         console.log(`Checkout Session created: ${session.id} for customer ${customer}`);
         return NextResponse.json({ url: session.url });
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error(err);
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         return NextResponse.json(
-            { error: 'Error creating checkout session', details: err.message },
+            { error: 'Error creating checkout session', details: errorMessage },
             { status: 500 }
         );
     }

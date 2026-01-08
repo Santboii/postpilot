@@ -2,8 +2,6 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { stripe } from './client';
 // Note: In a real app, generate types with: npx supabase gen types typescript --project-id ... > types_db.ts
-type Product = any;
-type Price = any;
 
 // Use a Service Role client for admin tasks (bypassing RLS)
 const supabaseAdmin = createClient(
@@ -57,9 +55,9 @@ const createOrRetrieveCustomer = async ({
         .from('customers')
         .select('stripe_customer_id')
         .eq('id', uuid)
-        .single();
+        .single<{ stripe_customer_id: string }>();
 
-    if (error && !(data as any)?.stripe_customer_id) {
+    if (error || !data?.stripe_customer_id) {
         // No customer record found, let's create one in Stripe
         const customerData: { metadata: { supabaseUUID: string }; email?: string } =
         {
@@ -89,11 +87,10 @@ const createOrRetrieveCustomer = async ({
                 throw new Error('Customer deleted in Stripe');
             }
             return data.stripe_customer_id;
-        } catch (err) {
+        } catch {
             console.warn(`Customer ${data.stripe_customer_id} missing/deleted in Stripe. Re-creating...`);
-            // If missing, fall through to creation logic below (we need to adjust the logic flow)
-            const customerData: { metadata: { supabaseUUID: string }; email?: string } =
-            {
+
+            const customerData: { metadata: { supabaseUUID: string }; email?: string } = {
                 metadata: {
                     supabaseUUID: uuid
                 }
@@ -147,7 +144,7 @@ const copyBillingDetailsToCustomer = async (
     const customer = payment_method.customer as string;
     const { name, phone, address } = payment_method.billing_details;
     if (!name || !address) return;
-    // @ts-ignore
+    // @ts-expect-error -- Stripe types are strict
     await stripe.customers.update(customer, { name, phone, address });
     const { error } = await supabaseAdmin
         .from('users') // or whatever user profile table you have
@@ -189,12 +186,14 @@ const manageSubscriptionStatusChange = async (
         metadata: subscription.metadata,
         status: subscription.status,
         price_id: subscription.items.data[0].price.id,
-        // @ts-ignore
+        // @ts-expect-error -- Quantity is sometimes missing in types but present in object
         quantity: subscription.quantity,
         cancel_at_period_end: subscription.cancel_at_period_end,
         cancel_at: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null,
         canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
+        // @ts-expect-error -- Standard Stripe fields missing in some type versions
         current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+        // @ts-expect-error -- Standard Stripe fields missing in some type versions
         current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
         created: new Date(subscription.created * 1000).toISOString(),
         ended_at: subscription.ended_at ? new Date(subscription.ended_at * 1000).toISOString() : null,
@@ -215,7 +214,6 @@ const manageSubscriptionStatusChange = async (
     // For a new subscription copy the billing details to the customer object.
     // NOTE: This is a cost-optimisation (avoids looking up customer again)
     if (createAction && subscription.default_payment_method && uuid) {
-        // @ts-ignore
         await copyBillingDetailsToCustomer(uuid, subscription.default_payment_method as Stripe.PaymentMethod);
     }
 };

@@ -17,6 +17,7 @@ export async function POST(request: Request) {
         }
 
         // 2. Validate Media
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         console.log('[TikTok API] Received payload:', { content, mediaCount: media?.length, mediaTypes: media?.map((m: any) => m.type) });
 
         const videoMedia = media?.find((m: MediaAttachment) => m.type === 'video');

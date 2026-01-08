@@ -17,14 +17,17 @@ async function syncStripeData() {
         for (const price of prices.data) {
             try {
                 await upsertPriceRecord(price);
-                logs.push(`Price upserted: ${price.id} (Product: ${typeof price.product === 'string' ? price.product : (price.product as any).id})`);
-            } catch (error: any) {
-                logs.push(`Error upserting price ${price.id}: ${error.message}`);
+                const productId = typeof price.product === 'string' ? price.product : price.product.id;
+                logs.push(`Price upserted: ${price.id} (Product: ${productId})`);
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : 'Unknown error';
+                logs.push(`Error upserting price ${price.id}: ${message}`);
             }
         }
         logs.push('Sync complete!');
-    } catch (error: any) {
-        logs.push(`Error syncing Stripe data: ${error.message}`);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logs.push(`Error syncing Stripe data: ${message}`);
         console.error('Error syncing Stripe data:', error);
     }
     return logs;

@@ -1,12 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import styles from './pricing.module.css';
 import { Price, Product, Subscription } from '@/types/db';
-import { getURL } from '@/lib/utils';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import Spinner from '@/components/ui/Spinner';
@@ -67,28 +65,7 @@ export default function PricingPage() {
 
     const searchParams = useSearchParams();
 
-    // Auto-checkout effect
-    useEffect(() => {
-        const action = searchParams.get('action');
-        const priceId = searchParams.get('price_id');
-
-        if (action === 'checkout' && priceId && !loading && products.length > 0) {
-            // Find the price object
-            let foundPrice: Price | undefined;
-            for (const prod of products) {
-                const p = prod.prices?.find(pr => pr.id === priceId);
-                if (p) { foundPrice = p; break; }
-            }
-
-            if (foundPrice) {
-                // Remove params to prevent loop/re-trigger
-                router.replace('/pricing', { scroll: false });
-                handleCheckout(foundPrice);
-            }
-        }
-    }, [loading, products, searchParams]); // Dependencies ensure it runs once data is ready
-
-    const handleCheckout = async (price: Price) => {
+    const handleCheckout = useCallback(async (price: Price) => {
         setBillingLoading(price.id);
         if (!price) return;
 
@@ -126,7 +103,28 @@ export default function PricingPage() {
         } finally {
             setBillingLoading(null);
         }
-    };
+    }, [router, supabase.auth]);
+
+    // Auto-checkout effect
+    useEffect(() => {
+        const action = searchParams.get('action');
+        const priceId = searchParams.get('price_id');
+
+        if (action === 'checkout' && priceId && !loading && products.length > 0) {
+            // Find the price object
+            let foundPrice: Price | undefined;
+            for (const prod of products) {
+                const p = prod.prices?.find(pr => pr.id === priceId);
+                if (p) { foundPrice = p; break; }
+            }
+
+            if (foundPrice) {
+                // Remove params to prevent loop/re-trigger
+                router.replace('/pricing', { scroll: false });
+                handleCheckout(foundPrice);
+            }
+        }
+    }, [loading, products, searchParams, handleCheckout, router]); // Dependencies ensure it runs once data is ready
 
     if (loading) return <Spinner fullScreen />;
 

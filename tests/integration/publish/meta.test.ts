@@ -22,7 +22,7 @@ describe('Meta Publishing', () => {
 
             const call = mockFetch.mock.calls.find(call => call[0].includes('/feed'));
             expect(call).toBeDefined();
-            const [url, options] = call as [string, RequestInit];
+            const [, options] = call as [string, RequestInit];
 
             // Verify token
             expect(options.headers).toHaveProperty('Content-Type', 'application/json');

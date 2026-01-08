@@ -27,11 +27,17 @@ export default function MediaCarouselModal({
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
     // Sync index if initialIndex changes while open (optional, but good practice)
-    useEffect(() => {
-        if (isOpen) {
-            setCurrentIndex(initialIndex);
-        }
-    }, [initialIndex, isOpen]);
+    const [prevInitialIndex, setPrevInitialIndex] = useState(initialIndex);
+    const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+
+    // Derived state: Sync index when modal opens or initialIndex changes while open
+    if (isOpen && (initialIndex !== prevInitialIndex || !prevIsOpen)) {
+        setCurrentIndex(initialIndex);
+        setPrevInitialIndex(initialIndex);
+        setPrevIsOpen(true);
+    } else if (!isOpen && prevIsOpen) {
+        setPrevIsOpen(false);
+    }
 
     const handleNext = useCallback((e?: React.MouseEvent | KeyboardEvent) => {
         e?.stopPropagation();

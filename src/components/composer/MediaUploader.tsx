@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { MediaAttachment } from '@/types';
 import styles from './Composer.module.css'; // We'll share the styles for now to avoid breaking CSS

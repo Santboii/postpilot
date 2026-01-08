@@ -309,7 +309,7 @@ export async function postToInstagram(
     else {
         // Step 3.1: Create item containers for each media (without caption)
         const childIds = await Promise.all(mediaItems.map(async (item) => {
-            const body: any = {
+            const body: Record<string, string | boolean | number> = {
                 is_carousel_item: true,
                 access_token: pageAccessToken,
             };

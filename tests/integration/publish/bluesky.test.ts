@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mockBlueskyApiResponses } from '../../utils';
 
 // Mock jose library to bypass crypto operations
-vi.mock('jose', async (importOriginal) => {
+vi.mock('jose', async () => {
     return {
         generateKeyPair: vi.fn().mockResolvedValue({
             privateKey: new Uint8Array([1, 2, 3]),
@@ -57,7 +57,7 @@ describe('Bluesky Publishing', () => {
         const createCall = mockFetch.mock.calls.find(call => call[0].includes('com.atproto.repo.createRecord'));
         expect(createCall).toBeDefined();
 
-        const [url, options] = createCall as [string, RequestInit];
+        const [, options] = createCall as [string, RequestInit];
         expect(options.method).toBe('POST');
 
         // Verify we hit the right PDS (mocked resolvePdsEndpoint implied, or default)

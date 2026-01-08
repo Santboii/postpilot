@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
 import { PlatformId, PLATFORMS, getCharacterLimit, MediaAttachment, generateId, ContentLibrary } from '@/types';
 import { createPost, publishPost } from '@/lib/db';
 import { getSupabase } from '@/lib/supabase';

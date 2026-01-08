@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
         let mediaItems: { type: 'image' | 'video'; url: string }[] = [];
 
         if (media && Array.isArray(media) && media.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             mediaItems = media.map((m: any) => ({
                 type: m.type === 'video' ? 'video' : 'image',
                 url: m.url

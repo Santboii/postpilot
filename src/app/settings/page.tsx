@@ -380,7 +380,7 @@ export default function SettingsPage() {
                                                 const data = await res.json();
                                                 if (data.url) window.location.href = data.url;
                                                 else throw new Error('Failed to create portal session');
-                                            } catch (e) {
+                                            } catch {
                                                 setMessage({ type: 'error', text: 'Failed to open billing portal' });
                                             }
                                         }}

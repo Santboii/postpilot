@@ -4,7 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import { PlatformId, PLATFORMS, getCharacterLimit } from '@/types';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
-import { getCharStatus, getPlatformValidationError, CharStatus } from '@/hooks/usePlatformValidation';
+import { getCharStatus, CharStatus } from '@/hooks/usePlatformValidation';
 import styles from './Composer.module.css';
 
 interface PreviewCardProps {
@@ -42,7 +42,6 @@ export default function PreviewCard({
     handle,
     isActive,
     isCustom,
-    imageCount,
     imagePreviews = [],
     files = [],
     validationError,

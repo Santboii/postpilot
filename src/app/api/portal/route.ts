@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createOrRetrieveCustomer } from '@/lib/stripe/admin';
 import { stripe } from '@/lib/stripe/client';
 import { getURL } from '@/lib/utils';
 
-export async function POST(req: NextRequest) {
+export async function POST() {
     try {
         // 1. Get User
         const supabase = await createClient();
@@ -25,17 +25,25 @@ export async function POST(req: NextRequest) {
             email: user.email || ''
         });
 
+        if (!customer) {
+            return NextResponse.json(
+                { error: 'Could not get customer.' },
+                { status: 500 }
+            );
+        }
+
         // 3. Create Portal Session
         const { url } = await stripe.billingPortal.sessions.create({
             customer,
-            return_url: `${getURL()}/settings/billing`
+            return_url: `${getURL()}/settings`
         });
 
         return NextResponse.json({ url });
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error(err);
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         return NextResponse.json(
-            { error: 'Error creating portal session', details: err.message },
+            { error: 'Error creating portal session', details: errorMessage },
             { status: 500 }
         );
     }
