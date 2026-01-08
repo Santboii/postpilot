@@ -5,7 +5,7 @@
  * Use it to set up environment variables, mocks, and global test utilities.
  */
 
-import { vi } from 'vitest';
+import { beforeAll, vi, afterEach } from 'vitest';
 
 // Set test environment variables
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test-project.supabase.co';
